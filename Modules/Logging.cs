@@ -1,24 +1,24 @@
 using System.IO;
+using VRPC.Configuration;
+using VRPC.NativeMessasing;
 
 namespace VRPC.Logging
 {
     class Log
     {
-        private string _filePath = "placeholder\\Log.txt";
+        private string filePath = VRPCSettings.LogPath;
 
         public void Write(string? content)
         {
             try
             {
-                // Format the log message with the current timestamp
                 string logEntry = $"[{DateTime.Now:yyyy-MM-dd HH:mm:ss}] {content}";
 
-                // Append the log entry to the file
-                File.AppendAllText(_filePath, logEntry + Environment.NewLine);
+                File.AppendAllText(filePath, logEntry + Environment.NewLine);
             }
-            catch (Exception ex)
+            catch (Exception e)
             {
-                Console.WriteLine($"Logging failed with exception {ex.Data}.");
+                NativeMessaging.SendMessage(NativeMessaging.EncodeMessage($"Logging failed with exception {e.Data}."));
             }
         }
     }

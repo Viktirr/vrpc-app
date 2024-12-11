@@ -9,7 +9,7 @@ namespace VRPC.DiscordRPCManager.Activities
         static Log log = new Log();
         public static void UpdateRPC()
         {
-            using (StreamReader sr = new StreamReader(VRPCSettings.filePath))
+            using (StreamReader sr = new StreamReader(VRPCSettings.RPCInfoPath))
             {
                 sr.ReadLine();
                 string? songName = sr.ReadLine()?.Trim();

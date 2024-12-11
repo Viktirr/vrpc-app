@@ -12,10 +12,10 @@ namespace VRPC.DiscordRPCManager.Activities {
         {
             try
             {
-                if (File.Exists(VRPCSettings.filePath))
+                if (File.Exists(VRPCSettings.RPCInfoPath))
                 {
                     string? serviceName;
-                    using (StreamReader sr = new StreamReader(VRPCSettings.filePath))
+                    using (StreamReader sr = new StreamReader(VRPCSettings.RPCInfoPath))
                     {
                         serviceName = sr.ReadLine()?.Trim();
                     }
@@ -27,7 +27,7 @@ namespace VRPC.DiscordRPCManager.Activities {
                 }
                 else
                 {
-                    log.Write($"File not found: {VRPCSettings.filePath}");
+                    log.Write($"File not found: {VRPCSettings.RPCInfoPath}");
                 }
             }
             catch (Exception e)

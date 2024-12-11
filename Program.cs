@@ -82,12 +82,14 @@ class Program
 
             log.Write($"Received {receivedMessage}");
 
-            if (messageType == "RPC:") { NativeMessaging.UpdateRPCFile(VRPCSettings.filePath, messageContent); }
+            if (messageType == "RPC:") { NativeMessaging.UpdateRPCFile(VRPCSettings.RPCInfoPath, messageContent); }
             if (messageType == "STATUS:") { StatusUpdate(messageContent); }
         }
     }
     static void Main(string[] args)
     {
+        VRPCSettings.checkIfApplicationDataFolderExists();
+
         try { Log log = new Log(); }
         catch (Exception e) { Console.WriteLine($"Could not initialize logging. Exception {e.Data}"); }
 
