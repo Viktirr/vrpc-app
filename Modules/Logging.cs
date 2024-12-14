@@ -18,7 +18,7 @@ namespace VRPC.Logging
             }
             catch (Exception e)
             {
-                NativeMessaging.SendMessage(NativeMessaging.EncodeMessage($"Logging failed with exception {e.Data}."));
+                NativeMessaging.SendMessage(NativeMessaging.EncodeMessage($"Logging failed with exception {e.Data}. Data to log: {content}"));
             }
         }
     }
