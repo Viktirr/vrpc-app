@@ -7,6 +7,64 @@ namespace VRPC.DiscordRPCManager.Activities
     class YouTubeMusic : SetDiscordActivity
     {
         static Log log = new Log();
+        private static void UpdateImage(string? songId, string? smallSongBanner)
+        {
+            try
+            {
+                if (songId == null || songId == "" || songId == "null")
+                {
+                    if (smallSongBanner == null || smallSongBanner == "" || smallSongBanner == "null")
+                    {
+                        richPresence.Assets.LargeImageKey = "ytmusic-vrpc";
+                    }
+                    else
+                    {
+                        richPresence.Assets.LargeImageKey = $"{smallSongBanner}";
+                    }
+                }
+                else
+                {
+                    richPresence.Assets.LargeImageKey = $"https://img.youtube.com/vi/{songId}/3.jpg";
+                }
+            }
+            catch (Exception e)
+            {
+                log.Write($"Couldn't get songId and set LargeImage appropriately. Exception {e.Data}");
+                richPresence.Assets.LargeImageKey = "ytmusic-rpc";
+            }
+        }
+        private static void UpdateStatus(string? songStatus, int songInSecondsCurrent)
+        {
+            if (songStatus != "Playing" && songStatus != "Paused")
+            {
+                richPresence.Assets.SmallImageKey = "";
+                richPresence.Assets.SmallImageText = "";
+            }
+            try
+            {
+                if (songStatus == "Playing")
+                {
+                    richPresence.Assets.SmallImageKey = "playing";
+                    richPresence.Assets.SmallImageText = "Playing";
+                }
+                else if (songStatus == "Paused")
+                {
+                    richPresence.Assets.SmallImageKey = "paused";
+                    richPresence.Assets.SmallImageText = "Paused";
+                    richPresence.Timestamps.Start = DateTime.UtcNow - TimeSpan.FromSeconds(songInSecondsCurrent);
+                    richPresence.Timestamps.End = DateTime.UtcNow;
+                }
+            }
+            catch { }
+        }
+
+        private static string[] UpdateTimestamps(string? songDurationRaw)
+        {
+            // TBD: Switch Timestamps to this function
+            string[] songDuration = Array.Empty<string>();
+            return songDuration;
+        }
+
         public static void UpdateRPC()
         {
             using (StreamReader sr = new StreamReader(VRPCSettings.RPCInfoPath))
@@ -27,7 +85,9 @@ namespace VRPC.DiscordRPCManager.Activities
                 string? songDurationRaw = sr.ReadLine()?.Trim();
                 string? songStatus = sr.ReadLine()?.Trim();
                 string? songId = "";
+                string? smallSongBanner = "";
                 try { songId = sr.ReadLine()?.Trim(); } catch (Exception e) { log.Write($"No song id found while attempting to read songId. Exception {e.Data}"); }
+                try { smallSongBanner = sr.ReadLine()?.Trim(); } catch (Exception e) { log.Write($"No banner found while attempting to read banner. Exception {e.Data}"); }
 
                 if (songName != null && songName.Length > 64) { songName = songName.Substring(0, 64); }
                 if (artistName != null && artistName.Length > 64) { artistName = artistName.Substring(0, 64); }
@@ -38,7 +98,7 @@ namespace VRPC.DiscordRPCManager.Activities
                 int songInSecondsCurrent = 0;
                 int songInSeconds = 0;
 
-                try { songDuration = songDurationRaw.Split("/"); } catch (Exception e) { log.Write($"Couldn't split the song duration into two parts. Exception {e.Data}"); }
+                try { songDuration = songDurationRaw.Split("/"); } catch (Exception e) { log.Write($"Couldn't split the song duration into two parts. Exception {e.Data}"); return; }
 
                 try
                 {
@@ -80,7 +140,6 @@ namespace VRPC.DiscordRPCManager.Activities
                 }
                 catch (Exception e) { log.Write($"Couldn't get the song duration, will use a previously set value. Error: {e.Data}"); }
 
-
                 if (!string.IsNullOrEmpty(songName))
                 {
                     richPresence.Details = songName;
@@ -101,40 +160,8 @@ namespace VRPC.DiscordRPCManager.Activities
                 }
                 catch { }
 
-                if (songStatus != "Playing" && songStatus != "Paused")
-                {
-                    richPresence.Assets.SmallImageKey = "";
-                    richPresence.Assets.SmallImageText = "";
-                }
-                try
-                {
-                    if (songStatus == "Playing")
-                    {
-                        richPresence.Assets.SmallImageKey = "playing";
-                        richPresence.Assets.SmallImageText = "Playing";
-                    }
-                    else if (songStatus == "Paused")
-                    {
-                        richPresence.Assets.SmallImageKey = "paused";
-                        richPresence.Assets.SmallImageText = "Paused";
-                        richPresence.Timestamps.Start = DateTime.UtcNow - TimeSpan.FromSeconds(songInSecondsCurrent);
-                        richPresence.Timestamps.End = DateTime.UtcNow;
-                    }
-                }
-                catch { }
-
-                try
-                {
-                    if (songId == null || songId == "" || songId == "null")
-                    {
-                        richPresence.Assets.LargeImageKey = "ytmusic-vrpc";                        
-                    } else {
-                        richPresence.Assets.LargeImageKey = $"https://img.youtube.com/vi/{songId}/3.jpg";
-                    }
-                } catch (Exception e) {
-                    log.Write($"Couldn't get songId and set LargeImage appropriately. Exception {e.Data}");
-                    richPresence.Assets.LargeImageKey = "ytmusic-rpc";
-                }
+                UpdateStatus(songStatus, songInSecondsCurrent);
+                UpdateImage(songId, smallSongBanner);
                 richPresence.Assets.LargeImageText = "Listening on YouTube Music";
             }
         }
