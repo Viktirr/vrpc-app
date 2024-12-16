@@ -14,7 +14,7 @@ namespace VRPC.DiscordRPCManager
         protected static RichPresence richPresence = new RichPresence() { Details = "---" };
         private static Log log = new Log();
 
-        public void Init()
+        public void Init(string service)
         {
             try
             {
@@ -22,9 +22,16 @@ namespace VRPC.DiscordRPCManager
             }
             catch (Exception e) { Console.WriteLine($"Could not initialize logging. {e.Data}"); }
 
+            Dictionary<string, string> serviceList = new Dictionary<string, string> {
+                ["YouTube Music"] = "1257441643691380828"
+            };
+
+            string currentServiceDiscordId;
+            try { currentServiceDiscordId = serviceList[service]; } catch (Exception e) { log.Write($"Couldn't get current service, using vrpc. Exception: {e.Data}"); currentServiceDiscordId = "1257441643691380828"; }
+
             try
             {
-                client = new DiscordRpcClient("1257441643691380828", pipe: -1);
+                client = new DiscordRpcClient(currentServiceDiscordId, pipe: -1);
 
                 richPresence = new RichPresence()
                 {
