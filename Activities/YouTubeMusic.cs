@@ -7,6 +7,26 @@ namespace VRPC.DiscordRPCManager.Activities
     class YouTubeMusic : SetDiscordActivity
     {
         static Log log = new Log();
+
+        private static bool IsNull(string? str)
+        {
+            if (str == null || str == "null" || str == "") { return true; }
+            else { return false; }
+        }
+
+        private static bool IsVideo(string? albumName, string? releaseYear)
+        {
+            if (albumName == null || releaseYear == null) { return true; }
+            try
+            {
+                if (albumName.Contains("views") && releaseYear.Contains("likes"))
+                {
+                    return true;
+                }
+            } catch { }
+            return false;
+        }
+
         private static void UpdateImage(string? songId, string? smallSongBanner)
         {
             try
@@ -65,6 +85,27 @@ namespace VRPC.DiscordRPCManager.Activities
             return songDuration;
         }
 
+
+        private static void UpdateAlbum(string? albumName, string? releaseYear, bool isVideo = false)
+        {
+            if (IsNull(albumName) && IsNull(releaseYear) || isVideo == true)
+            {
+                richPresence.Assets.LargeImageText = "Listening on YouTube Music";
+            }
+            else if (IsNull(releaseYear))
+            {
+                richPresence.Assets.LargeImageText = $"{albumName}";
+            }
+            else if (IsNull(albumName))
+            {
+                richPresence.Assets.LargeImageText = $"Released {releaseYear}";
+            }
+            else
+            {
+                richPresence.Assets.LargeImageText = $"{albumName} | Released {releaseYear}";
+            }
+        }
+
         public static void UpdateRPC()
         {
             using (StreamReader sr = new StreamReader(VRPCSettings.RPCInfoPath))
@@ -86,11 +127,15 @@ namespace VRPC.DiscordRPCManager.Activities
                 string? songStatus = sr.ReadLine()?.Trim();
                 string? songId = "";
                 string? smallSongBanner = "";
+                string? albumName = "";
+                string? releaseYear = "";
                 try { songId = sr.ReadLine()?.Trim(); } catch (Exception e) { log.Write($"No song id found while attempting to read songId. Exception {e.Data}"); }
                 try { smallSongBanner = sr.ReadLine()?.Trim(); } catch (Exception e) { log.Write($"No banner found while attempting to read banner. Exception {e.Data}"); }
+                try { albumName = sr.ReadLine()?.Trim(); } catch (Exception e) { log.Write($"Nothing found while attempting to read the name of the album. Exception {e.Data}"); }
+                try { releaseYear = sr.ReadLine()?.Trim(); } catch (Exception e) { log.Write($"Nothing found while attempting to read the release year of the song. Exception {e.Data}"); }
 
-                if (songName != null && songName.Length > 64) { songName = songName.Substring(0, 64); }
-                if (artistName != null && artistName.Length > 64) { artistName = artistName.Substring(0, 64); }
+                if (songName != null && songName.Length > 56) { songName = songName.Substring(0, 56); }
+                if (artistName != null && artistName.Length > 56) { artistName = artistName.Substring(0, 56); }
                 if (songDurationRaw == null) { songDurationRaw = ""; }
 
                 string[] songDuration = { };
@@ -160,9 +205,10 @@ namespace VRPC.DiscordRPCManager.Activities
                 }
                 catch { }
 
+                bool isVideo = IsVideo(albumName, releaseYear);
                 UpdateStatus(songStatus, songInSecondsCurrent);
                 UpdateImage(songId, smallSongBanner);
-                richPresence.Assets.LargeImageText = "Listening on YouTube Music";
+                UpdateAlbum(albumName, releaseYear, isVideo);
             }
         }
     }
