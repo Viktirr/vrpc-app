@@ -10,6 +10,7 @@ class Program
 {
     private static Log log = new Log();
     public static bool isDiscordRPCRunning = false;
+    private static string currentService = "";
     private static Thread? discordRPCThread;
     private static CancellationTokenSource discordCancellationTokenSource = new CancellationTokenSource();
     private static CancellationToken discordCancellationToken = discordCancellationTokenSource.Token;
@@ -20,8 +21,6 @@ class Program
         int seekFrom = 0;
         string currentLine;
 
-        string service = "";
-
         for (int i = 0; i < (newLineCount + 1); i++) {
             int nextNewLine = message.IndexOf("\n", seekFrom);
 
@@ -30,7 +29,7 @@ class Program
             
             seekFrom = nextNewLine + 1;
 
-            if (i == 0) { service = currentLine; }
+            if (i == 0) { currentService = currentLine; }
             if (currentLine == "Opened" && i == 1) {
                 if (isDiscordRPCRunning != true)
                 {
@@ -40,7 +39,7 @@ class Program
                     StartDiscordRPC();
                     return;
                 }
-                log.Write($"Got status opened for {service}, however Discord RPC is already running. Try again later.");
+                log.Write($"Got status opened for {currentService}, however Discord RPC is already running. Try again later.");
             }
             if (currentLine == "Closed" && i == 1) {
                 try { discordCancellationTokenSource.Cancel(); } catch (Exception e) { log.Write($"Couldn't cancel Cancellation Token for Discord RPC, probably already cancelling? Exception {e.Data}"); }
@@ -53,7 +52,7 @@ class Program
         log.Write("Attempting to start Discord RPC");
         isDiscordRPCRunning = true;
         DiscordRPCManager discordRPC = new DiscordRPCManager();
-        discordRPC.Init();
+        discordRPC.Init(currentService);
         discordRPC.Start(token);
         while (!token.IsCancellationRequested) {
             Thread.Sleep(500);
