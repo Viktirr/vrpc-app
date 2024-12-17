@@ -1,6 +1,7 @@
 using System;
 using VRPC.Logging;
 using VRPC.Configuration;
+using DiscordRPC;
 
 namespace VRPC.DiscordRPCManager.Activities
 {
@@ -103,6 +104,24 @@ namespace VRPC.DiscordRPCManager.Activities
             else
             {
                 richPresence.Assets.LargeImageText = $"{albumName} | Released {releaseYear}";
+            }
+        }
+
+        private static void UpdateButton(string? songId)
+        {
+            if (songId == null || songId == "null" || songId == "")
+            {
+                richPresence.Buttons = null;
+                return;
+            }
+            else {
+                richPresence.Buttons = new Button[]
+                {
+                    new Button()
+                    {
+                        Label = "Listen on YouTube Music", Url=$"https://music.youtube.com/watch?v={songId}"
+                    }
+                };
             }
         }
 
@@ -209,6 +228,7 @@ namespace VRPC.DiscordRPCManager.Activities
                 UpdateStatus(songStatus, songInSecondsCurrent);
                 UpdateImage(songId, smallSongBanner);
                 UpdateAlbum(albumName, releaseYear, isVideo);
+                UpdateButton(songId);
             }
         }
     }
