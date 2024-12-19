@@ -5,6 +5,7 @@ using VRPC.Logging;
 using VRPC.NativeMessasing;
 using VRPC.Configuration;
 using DiscordRPC;
+using VRPC.ListeningDataManager;
 
 class Program
 {
@@ -14,6 +15,8 @@ class Program
     private static Thread? discordRPCThread;
     private static CancellationTokenSource discordCancellationTokenSource = new CancellationTokenSource();
     private static CancellationToken discordCancellationToken = discordCancellationTokenSource.Token;
+    private static CancellationTokenSource listeningDataCancellationTokenSource = new CancellationTokenSource();
+    private static CancellationToken listeningDataCancellationToken = listeningDataCancellationTokenSource.Token;
 
     static void StatusUpdate(string message)
     {
@@ -85,6 +88,12 @@ class Program
             if (messageType == "STATUS:") { StatusUpdate(messageContent); }
         }
     }
+
+    static void UseListeningData()
+    {
+        ListeningData.Heartbeat(listeningDataCancellationToken);
+    }
+
     static void Main(string[] args)
     {
         VRPCSettings.checkIfApplicationDataFolderExists();
@@ -95,5 +104,8 @@ class Program
         Thread nativeMessagingThread = new Thread(UseNativeMessaging);
         nativeMessagingThread.Start();
         log.Write("Starting Native Messaging.");
+
+        Thread listeningDataThread = new Thread(UseListeningData);
+        listeningDataThread.Start();
     }
 }

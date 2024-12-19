@@ -27,8 +27,6 @@ namespace VRPC.DiscordRPCManager
             }
             catch (Exception e) { Console.WriteLine($"Could not initialize logging. {e.Data}"); }
 
-
-
             string currentServiceDiscordId;
             try { currentServiceDiscordId = serviceList[service]; } catch (Exception e) { log.Write($"Couldn't get current service, using vrpc. Exception: {e.Data}"); currentServiceDiscordId = serviceList[service]; }
 

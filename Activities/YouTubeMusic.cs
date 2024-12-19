@@ -1,12 +1,19 @@
 using System;
 using VRPC.Logging;
 using VRPC.Configuration;
+using VRPC.ListeningDataManager;
 using DiscordRPC;
 
 namespace VRPC.DiscordRPCManager.Activities
 {
     class YouTubeMusic : SetDiscordActivity
     {
+        private static void UpdateListeningData(string? songName, string? artistName, string? songStatus)
+        {
+            if (songName == null || artistName == null || songStatus == null) { return; }
+            bool songPlaying = songStatus == "Playing" ? true : false;
+            ListeningData.UpdateListeningData(songName, artistName, songPlaying);
+        }
         static Log log = new Log();
 
         private static bool IsNull(string? str)
@@ -225,6 +232,7 @@ namespace VRPC.DiscordRPCManager.Activities
                 catch { }
 
                 bool isVideo = IsVideo(albumName, releaseYear);
+                UpdateListeningData(songName, artistName, songStatus);
                 UpdateStatus(songStatus, songInSecondsCurrent);
                 UpdateImage(songId, smallSongBanner);
                 UpdateAlbum(albumName, releaseYear, isVideo);
