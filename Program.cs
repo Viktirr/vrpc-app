@@ -42,17 +42,17 @@ class Program
                     StartDiscordRPC();
                     return;
                 }
-                log.Write($"Got status opened for {currentService}, however Discord RPC is already running. Try again later.");
+                log.Info($"[Main] Got status opened for {currentService}, however Discord RPC is already running. Try again later.");
             }
             if (currentLine == "Closed" && i == 1) {
-                try { discordCancellationTokenSource.Cancel(); } catch (Exception e) { log.Write($"Couldn't cancel Cancellation Token for Discord RPC, probably already cancelling? Exception {e.Data}"); }
+                try { discordCancellationTokenSource.Cancel(); } catch (Exception e) { log.Warn($"[Main] Couldn't cancel Cancellation Token for Discord RPC, probably already cancelling? Exception {e.Data}"); }
             }
         }
     }
 
     static void UseDiscordRPC(CancellationToken token)
     {
-        log.Write("Attempting to start Discord RPC");
+        log.Info("[Main] Attempting to start Discord RPC");
         isDiscordRPCRunning = true;
         DiscordRPCManager discordRPC = new DiscordRPCManager();
         discordRPC.Init(currentService);
@@ -60,7 +60,7 @@ class Program
         while (!token.IsCancellationRequested) {
             Thread.Sleep(500);
         }
-        log.Write("Closing Discord RPC");
+        log.Info("[Main] Closing Discord RPC");
         discordRPC.Dispose();
         discordCancellationTokenSource.TryReset();
         discordCancellationTokenSource.Dispose();
@@ -69,7 +69,7 @@ class Program
 
     static void StartDiscordRPC()
     {
-        if (isDiscordRPCRunning == true) { log.Write("DiscordRPC is already running, not creating another one"); return; }
+        if (isDiscordRPCRunning == true) { log.Info("[Main] DiscordRPC is already running, not creating another one"); return; }
         discordRPCThread = new Thread(() => UseDiscordRPC(discordCancellationToken));
         discordRPCThread.Start();
     }
@@ -103,9 +103,10 @@ class Program
 
         Thread nativeMessagingThread = new Thread(UseNativeMessaging);
         nativeMessagingThread.Start();
-        log.Write("Starting Native Messaging.");
+        log.Write("[Main] Starting Native Messaging.");
 
         Thread listeningDataThread = new Thread(UseListeningData);
         listeningDataThread.Start();
+        log.Info("[Main] Starting Listening Data.");
     }
 }

@@ -57,7 +57,7 @@ namespace VRPC.DiscordRPCManager.Activities
             }
             catch (Exception e)
             {
-                log.Write($"Couldn't get songId and set LargeImage appropriately. Exception {e.Data}");
+                log.Warn($"[YouTube Music] Couldn't get songId and set LargeImage appropriately. Exception {e.Data}");
                 richPresence.Assets.LargeImageKey = "ytmusic-rpc";
             }
         }
@@ -155,10 +155,10 @@ namespace VRPC.DiscordRPCManager.Activities
                 string? smallSongBanner = "";
                 string? albumName = "";
                 string? releaseYear = "";
-                try { songId = sr.ReadLine()?.Trim(); } catch (Exception e) { log.Write($"No song id found while attempting to read songId. Exception {e.Data}"); }
-                try { smallSongBanner = sr.ReadLine()?.Trim(); } catch (Exception e) { log.Write($"No banner found while attempting to read banner. Exception {e.Data}"); }
-                try { albumName = sr.ReadLine()?.Trim(); } catch (Exception e) { log.Write($"Nothing found while attempting to read the name of the album. Exception {e.Data}"); }
-                try { releaseYear = sr.ReadLine()?.Trim(); } catch (Exception e) { log.Write($"Nothing found while attempting to read the release year of the song. Exception {e.Data}"); }
+                try { songId = sr.ReadLine()?.Trim(); } catch (Exception e) { log.Warn($"[Youtube Music] No song id found while attempting to read songId. Exception {e.Data}"); }
+                try { smallSongBanner = sr.ReadLine()?.Trim(); } catch (Exception e) { log.Warn($"[Youtube Music] No banner found while attempting to read banner. Exception {e.Data}"); }
+                try { albumName = sr.ReadLine()?.Trim(); } catch (Exception e) { log.Warn($"[Youtube Music] Nothing found while attempting to read the name of the album. Exception {e.Data}"); }
+                try { releaseYear = sr.ReadLine()?.Trim(); } catch (Exception e) { log.Warn($"[Youtube Music] Nothing found while attempting to read the release year of the song. Exception {e.Data}"); }
 
                 if (songName != null && songName.Length > 56) { songName = songName.Substring(0, 56); }
                 if (artistName != null && artistName.Length > 56) { artistName = artistName.Substring(0, 56); }
@@ -169,7 +169,7 @@ namespace VRPC.DiscordRPCManager.Activities
                 int songInSecondsCurrent = 0;
                 int songInSeconds = 0;
 
-                try { songDuration = songDurationRaw.Split("/"); } catch (Exception e) { log.Write($"Couldn't split the song duration into two parts. Exception {e.Data}"); return; }
+                try { songDuration = songDurationRaw.Split("/"); } catch (Exception e) { log.Error($"[Youtube Music] Couldn't split the song duration into two parts. Exception {e.Data}"); return; }
 
                 try
                 {
@@ -209,7 +209,7 @@ namespace VRPC.DiscordRPCManager.Activities
                         }
                     }
                 }
-                catch (Exception e) { log.Write($"Couldn't get the song duration, will use a previously set value. Error: {e.Data}"); }
+                catch (Exception e) { log.Warn($"[Youtube Music] Couldn't get the song duration, will use a previously set value. Error: {e.Data}"); }
 
                 if (!string.IsNullOrEmpty(songName))
                 {

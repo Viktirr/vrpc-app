@@ -27,12 +27,12 @@ namespace VRPC.DiscordRPCManager.Activities {
                 }
                 else
                 {
-                    log.Write($"File not found: {VRPCSettings.RPCInfoPath}");
+                    log.Error($"[DiscordRPC - SetDiscordActivity] File not found: {VRPCSettings.RPCInfoPath}");
                 }
             }
             catch (Exception e)
             {
-                log.Write($"Error reading activity file: {e.Data + e.StackTrace}");
+                log.Error($"[DiscordRPC - SetDiscordActivity] Error reading activity file: {e.Data + e.StackTrace}");
             }
         }
     }

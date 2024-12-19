@@ -59,7 +59,7 @@ namespace VRPC.ListeningDataManager
             }
             catch
             {
-                log.Write("Couldn't read from file, creating new SongData object");
+                log.Warn("[ListeningData] Couldn't read from file, creating new SongData object");
                 songData = new SongData();
             }
 
@@ -71,7 +71,7 @@ namespace VRPC.ListeningDataManager
                 string jsonString = JsonSerializer.Serialize(songData, new JsonSerializerOptions { WriteIndented = true });
                 System.IO.File.WriteAllText(filePath, jsonString, Encoding.UTF8);
             }
-            catch { log.Write("Couldn't write to file"); }
+            catch { log.Error("[ListeningData] Couldn't write to file"); }
         }
 
         public static void UpdateListeningData(string _songName, string _artistName, bool _songPlaying = false)

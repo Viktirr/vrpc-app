@@ -28,7 +28,7 @@ namespace VRPC.DiscordRPCManager
             catch (Exception e) { Console.WriteLine($"Could not initialize logging. {e.Data}"); }
 
             string currentServiceDiscordId;
-            try { currentServiceDiscordId = serviceList[service]; } catch (Exception e) { log.Write($"Couldn't get current service, using vrpc. Exception: {e.Data}"); currentServiceDiscordId = serviceList[service]; }
+            try { currentServiceDiscordId = serviceList[service]; } catch (Exception e) { log.Warn($"[DiscordRPC] Couldn't get current service, using vrpc. Exception: {e.Data}"); currentServiceDiscordId = serviceList[service]; }
 
             try
             {
@@ -51,11 +51,11 @@ namespace VRPC.DiscordRPCManager
                         Start = DateTime.UtcNow
                     }
                 };
-                log.Write("Discord RPC initialized successfully.");
+                log.Write("[DiscordRPC] Discord RPC initialized successfully.");
             }
             catch (Exception e)
             {
-                log.Write($"Error initializing Discord RPC: {e.Message + e.StackTrace}");
+                log.Error($"[DiscordRPC] Error initializing Discord RPC: {e.Message + e.StackTrace}");
             }
         }
 
@@ -63,7 +63,7 @@ namespace VRPC.DiscordRPCManager
         {
             if (client == null)
             {
-                log.Write("Discord RPC not initialized. Call Init() before Start().");
+                log.Info("[DiscordRPC] Discord RPC not initialized. Call Init() before Start().");
                 return;
             }
             client.Initialize();
@@ -80,7 +80,7 @@ namespace VRPC.DiscordRPCManager
                         SetDiscordActivity.UpdateActivityFromFile();
 
                         client.SetPresence(richPresence);
-                        log.Write($"Discord Rich Presence updated. Now {richPresence.Type} {richPresence.Details} by {richPresence.State}.");
+                        log.Info($"[DiscordRPC] Discord Rich Presence updated. Now {richPresence.Type} {richPresence.Details} by {richPresence.State}.");
 
                         for (int i = 0; i < attemptsPerFileChecks; i++)
                         {
@@ -92,7 +92,7 @@ namespace VRPC.DiscordRPCManager
             }
             catch (Exception e)
             {
-                log.Write($"Error in Start loop for Discord RPC: {e.Message + e.StackTrace}");
+                log.Error($"[DiscordRPC] Error in Start loop for Discord RPC: {e.Message + e.StackTrace}");
                 Dispose();
             }
         }
@@ -100,7 +100,7 @@ namespace VRPC.DiscordRPCManager
         public void Dispose()
         {
             client?.Dispose();
-            log.Write("Discord RPC disposed.");
+            log.Info("[DiscordRPC] Discord RPC disposed.");
         }
     }
 }

@@ -8,8 +8,10 @@ namespace VRPC.Configuration
         private static string pathAppData = Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData);
         public static string UserAppDataPath = Path.Combine(pathAppData, "VRPCApp");
         public static string RPCInfoPath = Path.Combine(UserAppDataPath, "RPCInfo.txt");
-        public static string LogPath = Path.Combine(UserAppDataPath, "Log.txt");
         public static string ListeningDataPath = Path.Combine(UserAppDataPath, "ListeningData.json");
+
+        public static string LogPath = Path.Combine(UserAppDataPath, "Log.txt");
+        public static bool LoggingWriteEnabled = false;
 
         public static Log log = new Log();
 
