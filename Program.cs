@@ -12,7 +12,6 @@ class Program
     private static Log log = new Log();
     public static bool isDiscordRPCRunning = false;
     private static string currentService = "";
-    private static Thread? discordRPCThread;
     private static CancellationTokenSource discordCancellationTokenSource = new CancellationTokenSource();
     private static CancellationToken discordCancellationToken = discordCancellationTokenSource.Token;
     private static CancellationTokenSource listeningDataCancellationTokenSource = new CancellationTokenSource();
@@ -24,31 +23,54 @@ class Program
         int seekFrom = 0;
         string currentLine;
 
-        for (int i = 0; i < (newLineCount + 1); i++) {
+        Dictionary<int, string> messageDictionary = new Dictionary<int, string>();
+        for (int i = 0; i < (newLineCount + 1); i++)
+        {
             int nextNewLine = message.IndexOf("\n", seekFrom);
 
             if (nextNewLine == -1) { currentLine = message.Substring(seekFrom); }
             else { currentLine = message.Substring(seekFrom, nextNewLine); }
-            
-            seekFrom = nextNewLine + 1;
 
-            if (i == 0) { currentService = currentLine; }
-            if (currentLine == "Opened" && i == 1) {
-                if (isDiscordRPCRunning != true)
-                {
-                    discordCancellationTokenSource = new CancellationTokenSource();
-                    discordCancellationToken = discordCancellationTokenSource.Token;
-                    log.Write("Calling StartDiscordRPC");
-                    StartDiscordRPC();
-                    return;
-                }
-                log.Info($"[Main] Got status opened for {currentService}, however Discord RPC is already running. Try again later.");
+            messageDictionary.Add(i, currentLine);
+
+            seekFrom = nextNewLine + 1;
+        }
+
+        static bool OpenDiscordRPC()
+        {
+            if (isDiscordRPCRunning != true)
+            {
+                discordCancellationTokenSource = new CancellationTokenSource();
+                discordCancellationToken = discordCancellationTokenSource.Token;
+                log.Write("Calling StartDiscordRPC");
+                StartDiscordRPC();
+                return true;
             }
-            if (currentLine == "Closed" && i == 1) {
-                try { discordCancellationTokenSource.Cancel(); } catch (Exception e) { log.Warn($"[Main] Couldn't cancel Cancellation Token for Discord RPC, probably already cancelling? Exception {e.Data}"); }
-            }
+            log.Info($"[Main] Got status opened for {currentService}, however Discord RPC is already running. Try again later.");
+            return false;
+        }
+
+        // We make 2 tries to start Discord RPC in case the user started a new tab/refreshed the page.
+        if (messageDictionary[0].Contains("Program") && messageDictionary[1] == "Shutdown")
+        {
+            log.Write("[Main] Possible shutdown requested.");
+            CancellationToken ct = new CancellationToken();
+            ListeningData.Heartbeat(ct, true);
+        }
+
+        if (!messageDictionary[0].Contains("Program")) { currentService = messageDictionary[0]; }
+        if (messageDictionary[1] == "Opened")
+        {
+            bool OpenDiscordRPCSuccess = OpenDiscordRPC();
+            if (!OpenDiscordRPCSuccess) { Thread.Sleep(1000); OpenDiscordRPC(); }
+        }
+
+        if (messageDictionary[1] == "Closed")
+        {
+            try { discordCancellationTokenSource.Cancel(); } catch (Exception e) { log.Warn($"[Main] Couldn't cancel Cancellation Token for Discord RPC, probably already cancelling? Exception {e.Data}"); }
         }
     }
+
 
     static void UseDiscordRPC(CancellationToken token)
     {
@@ -57,7 +79,8 @@ class Program
         DiscordRPCManager discordRPC = new DiscordRPCManager();
         discordRPC.Init(currentService);
         discordRPC.Start(token);
-        while (!token.IsCancellationRequested) {
+        while (!token.IsCancellationRequested)
+        {
             Thread.Sleep(500);
         }
         log.Info("[Main] Closing Discord RPC");
@@ -70,6 +93,7 @@ class Program
     static void StartDiscordRPC()
     {
         if (isDiscordRPCRunning == true) { log.Info("[Main] DiscordRPC is already running, not creating another one"); return; }
+        Thread discordRPCThread;
         discordRPCThread = new Thread(() => UseDiscordRPC(discordCancellationToken));
         discordRPCThread.Start();
     }
@@ -89,9 +113,9 @@ class Program
         }
     }
 
-    static void UseListeningData()
+    static void UseListeningData(bool ShutdownRequested = false)
     {
-        ListeningData.Heartbeat(listeningDataCancellationToken);
+        ListeningData.Heartbeat(listeningDataCancellationToken, ShutdownRequested);
     }
 
     static void Main(string[] args)
@@ -105,7 +129,7 @@ class Program
         nativeMessagingThread.Start();
         log.Write("[Main] Starting Native Messaging.");
 
-        Thread listeningDataThread = new Thread(UseListeningData);
+        Thread listeningDataThread = new Thread(new ParameterizedThreadStart((obj) => UseListeningData((bool)(obj ?? false))));
         listeningDataThread.Start();
         log.Info("[Main] Starting Listening Data.");
     }

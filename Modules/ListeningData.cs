@@ -5,6 +5,7 @@ using System.Collections.Generic;
 using VRPC.Configuration;
 using VRPC.Logging;
 using System.Text;
+using System.Reflection.Metadata;
 
 namespace VRPC.ListeningDataManager
 {
@@ -18,14 +19,20 @@ namespace VRPC.ListeningDataManager
         private static Log log = new Log();
         private static bool SongPlaying = false;
 
+        private static string filePath = VRPCSettings.ListeningDataPath;
+        private static bool ErrorReadingFromFile = true;
+        private static DateTime LastDataUpdate;
+
         private class SongData
         {
             // "TotalListened": 0
             // "SongsData": {
-            // ["SongName_ArtistName"]: ["SongName","ArtistName","SongTotalSeconds"]
+            // ["SongName_ArtistName"]: [{"name":"SongName"},{"author":"ArtistName"},{"timelistened":"SongTotalSeconds"}]
             // }
+            public string versionNumber { get; set; } = "0.1";
+
             public int TotalListened { get; set; } = 0;
-            public Dictionary<string, string[]> SongsData { get; set; } = new Dictionary<string, string[]>();
+            public Dictionary<string, Dictionary<string, string>> SongsData { get; set; } = new Dictionary<string, Dictionary<string, string>>();
 
             public void AddSong(string songName, string artistName, int songTotalSeconds)
             {
@@ -38,19 +45,26 @@ namespace VRPC.ListeningDataManager
 
                 if (SongsData.ContainsKey(key))
                 {
-                    SongsData[key][2] = (int.Parse(SongsData[key][2]) + songTotalSeconds).ToString();
+                    try
+                    {
+                        SongsData[key]["timelistened"] = (int.Parse(SongsData[key]["timelistened"]) + songTotalSeconds).ToString();
+                    }
+                    catch { log.Error($"[ListeningData] Couldn't get Time Listened for {key}. It's time won't be updated."); }
                 }
                 else
                 {
-                    SongsData[key] = new string[] { songName, artistName, songTotalSeconds.ToString() };
+                    SongsData[key] = new Dictionary<string, string>
+                    {
+                        { "name", songName },
+                        { "author", artistName },
+                        { "timelistened", songTotalSeconds.ToString() }
+                    };
                 }
             }
         }
 
-        private static void UpdateListeningDataFile()
+        private static SongData ReadDataFile()
         {
-            string filePath = VRPCSettings.ListeningDataPath;
-
             SongData songData = new SongData();
             try
             {
@@ -59,23 +73,45 @@ namespace VRPC.ListeningDataManager
             }
             catch
             {
-                log.Warn("[ListeningData] Couldn't read from file, creating new SongData object");
-                songData = new SongData();
+                log.Warn("[ListeningData] Couldn't read from file. Won't update, maybe the file is corrupted?");
+                ErrorReadingFromFile = true;
+                return songData;
             }
+            return songData;
+        }
 
+        private static SongData UpdateSongData(SongData songData)
+        {
             songData.AddSong(PreviousSongName, PreviousArtistName, activeSongInSeconds);
             songData.TotalListened += activeSongInSeconds;
+            return songData;
+        }
 
+        private static SongData SaveDataFile(SongData songData)
+        {
             try
             {
                 string jsonString = JsonSerializer.Serialize(songData, new JsonSerializerOptions { WriteIndented = true });
                 System.IO.File.WriteAllText(filePath, jsonString, Encoding.UTF8);
             }
             catch { log.Error("[ListeningData] Couldn't write to file"); }
+            return songData;
+        }
+
+        private static void UpdateListeningDataFile()
+        {
+            log.Write($"[ListeningData] Attempting to save to file.");
+            SongData songData = ReadDataFile();
+            if (ErrorReadingFromFile) { ErrorReadingFromFile = false; return; }
+
+            songData = UpdateSongData(songData);
+            songData = SaveDataFile(songData);
+            activeSongInSeconds = 0;
         }
 
         public static void UpdateListeningData(string _songName, string _artistName, bool _songPlaying = false)
         {
+            LastDataUpdate = DateTime.UtcNow;
             SongName = _songName;
             ArtistName = _artistName;
             SongPlaying = _songPlaying;
@@ -83,27 +119,45 @@ namespace VRPC.ListeningDataManager
             if (SongName != PreviousSongName || ArtistName != PreviousArtistName)
             {
                 UpdateListeningDataFile();
-                activeSongInSeconds = 0;
             }
 
             PreviousSongName = SongName;
             PreviousArtistName = ArtistName;
         }
 
-        public static void Heartbeat(CancellationToken token)
+        public static void Heartbeat(CancellationToken token, bool ShutdownRequested = false)
         {
+            bool SavingEnabled = true;
+
+            if (ShutdownRequested)
+            {
+                log.Write("[ListeningData] Shutdown requested. Attempt saving to file.");
+                UpdateListeningDataFile();
+                return;
+            }
+
             while (true)
             {
                 while (!token.IsCancellationRequested)
                 {
                     Thread.Sleep(1000);
-                    log.Write($"[Listening Data - Heartbeat] {SongName} - {ArtistName} - {activeSongInSeconds}");
                     if (string.IsNullOrEmpty(SongName) || string.IsNullOrEmpty(ArtistName)) { continue; }
-                    if (SongPlaying)
+                    if (SongPlaying && ((DateTime.UtcNow - LastDataUpdate) < TimeSpan.FromSeconds(6)))
                     {
                         activeSongInSeconds++;
+                        log.Write($"[ListeningData - Heartbeat] {SongName} - {ArtistName} - {activeSongInSeconds} - Active");
+                        SavingEnabled = true;
+                        if (activeSongInSeconds >= 60) { UpdateListeningDataFile(); }
+                        continue;
+                    }
+                    log.Write($"[ListeningData - Heartbeat] {SongName} - {ArtistName} - {activeSongInSeconds} - Inactive");
+                    if (SavingEnabled)
+                    {
+                        UpdateListeningDataFile();
+                        SavingEnabled = false;
                     }
                 }
+                return;
             }
         }
     }
