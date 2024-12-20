@@ -30,7 +30,7 @@ namespace VRPC.ListeningDataManager
             public void AddSong(string songName, string artistName, int songTotalSeconds)
             {
                 if (string.IsNullOrEmpty(songName)) { return; }
-                string pattern = @"[^\w\s.,!?'-]";
+                string pattern = @"[^a-zA-Z.,!?']";
                 string songNameClean = Regex.Replace(songName, pattern, "");
                 string artistNameClean = Regex.Replace(artistName, pattern, "");
 
