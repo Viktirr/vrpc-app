@@ -50,11 +50,22 @@ class Program
             return false;
         }
 
-        if (messageDictionary[0].Contains("Program") && messageDictionary[1] == "Shutdown")
+        if (messageDictionary[0].Contains("Program"))
         {
-            log.Write("[Main] Possible shutdown requested.");
-            CancellationToken ct = new CancellationToken();
-            ListeningData.Heartbeat(ct, true);
+            if (messageDictionary[1] == "Shutdown")
+            {
+                log.Write("[Main] Possible shutdown requested.");
+                CancellationToken ct = new CancellationToken();
+                ListeningData.Heartbeat(ct, true);
+            }
+            else if (messageDictionary[1] == "Started")
+            {
+                NativeMessaging.SendMessage(NativeMessaging.EncodeMessage("Hello"));
+            }
+            else if (messageDictionary[1] == "Heartbeat")
+            {
+                NativeMessaging.SendMessage(NativeMessaging.EncodeMessage("Alive"));
+            }
         }
 
         // We make 2 tries to start Discord RPC in case the user started a new tab/refreshed the page.
@@ -102,9 +113,19 @@ class Program
     {
         while (true)
         {
-            var receivedMessage = NativeMessaging.GetMessage();
-            var messageType = receivedMessage.Substring(0, receivedMessage.IndexOf("\n")).ToUpper().Trim();
-            var messageContent = receivedMessage.Substring(receivedMessage.IndexOf("\n") + 1);
+            string receivedMessage = NativeMessaging.GetMessage();
+            string messageType;
+            string messageContent;
+            if (receivedMessage.IndexOf("\n") == -1)
+            {
+                messageType = "NONE:";
+                messageContent = receivedMessage;
+            }
+            else
+            {
+                messageType = receivedMessage.Substring(0, receivedMessage.IndexOf("\n")).ToUpper().Trim();
+                messageContent = receivedMessage.Substring(receivedMessage.IndexOf("\n") + 1);
+            }
 
             log.Write($"Received {receivedMessage}");
 
