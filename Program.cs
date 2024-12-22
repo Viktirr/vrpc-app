@@ -50,7 +50,6 @@ class Program
             return false;
         }
 
-        // We make 2 tries to start Discord RPC in case the user started a new tab/refreshed the page.
         if (messageDictionary[0].Contains("Program") && messageDictionary[1] == "Shutdown")
         {
             log.Write("[Main] Possible shutdown requested.");
@@ -58,6 +57,7 @@ class Program
             ListeningData.Heartbeat(ct, true);
         }
 
+        // We make 2 tries to start Discord RPC in case the user started a new tab/refreshed the page.
         if (!messageDictionary[0].Contains("Program")) { currentService = messageDictionary[0]; }
         if (messageDictionary[1] == "Opened")
         {
@@ -67,7 +67,7 @@ class Program
 
         if (messageDictionary[1] == "Closed")
         {
-            try { discordCancellationTokenSource.Cancel(); } catch (Exception e) { log.Warn($"[Main] Couldn't cancel Cancellation Token for Discord RPC, probably already cancelling? Exception {e.Data}"); }
+            try { discordCancellationTokenSource.Cancel(); } catch (Exception e) { log.Warn($"[Main] Couldn't cancel Cancellation Token for Discord RPC, probably already cancelled? Exception {e.Data}"); }
         }
     }
 

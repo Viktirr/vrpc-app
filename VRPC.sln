@@ -3,7 +3,7 @@ Microsoft Visual Studio Solution File, Format Version 12.00
 # Visual Studio Version 17
 VisualStudioVersion = 17.5.002.0
 MinimumVisualStudioVersion = 10.0.40219.1
-Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "NativeMessagingApp", "NativeMessagingApp.csproj", "{8BE89F94-EBBD-4A10-9BF3-D8ECB0350770}"
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "VRPC", "VRPC.csproj", "{8BE89F94-EBBD-4A10-9BF3-D8ECB0350770}"
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
