@@ -121,6 +121,10 @@ class Program
     static void Main(string[] args)
     {
         VRPCSettings.checkIfApplicationDataFolderExists();
+        VRPCSettings.checkSettings();
+        log.Write("[Main] Reading Settings from file.");
+
+        log.Clear();
 
         try { Log log = new Log(); }
         catch (Exception e) { Console.WriteLine($"Could not initialize logging. Exception {e.Data}"); }
@@ -131,6 +135,6 @@ class Program
 
         Thread listeningDataThread = new Thread(new ParameterizedThreadStart((obj) => UseListeningData((bool)(obj ?? false))));
         listeningDataThread.Start();
-        log.Info("[Main] Starting Listening Data.");
+        log.Write("[Main] Starting Listening Data.");
     }
 }
