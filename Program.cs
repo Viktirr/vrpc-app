@@ -52,17 +52,17 @@ class Program
 
         if (messageDictionary[0].Contains("Program"))
         {
-            if (messageDictionary[1] == "Shutdown")
+            if (messageDictionary[1].Contains("Shutdown"))
             {
                 log.Write("[Main] Possible shutdown requested.");
                 CancellationToken ct = new CancellationToken();
                 ListeningData.Heartbeat(ct, true);
             }
-            else if (messageDictionary[1] == "Started")
+            else if (messageDictionary[1].Contains("Started"))
             {
                 NativeMessaging.SendMessage(NativeMessaging.EncodeMessage("Hello"));
             }
-            else if (messageDictionary[1] == "Heartbeat")
+            else if (messageDictionary[1].Contains("Heartbeat"))
             {
                 NativeMessaging.SendMessage(NativeMessaging.EncodeMessage("Alive"));
             }
