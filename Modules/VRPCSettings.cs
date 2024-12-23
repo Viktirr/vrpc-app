@@ -37,6 +37,8 @@ namespace VRPC.Configuration
         {
             public bool LoggingWriteEnabled { get; set; } = false;
             public bool DisableClearingLogs { get; set; } = true;
+            public bool EnableDiscordRPC { get; set; } = true;
+            public bool EnableListeningData { get; set; } = true;
         }
 
         private static SettingsData ReadConfigFile()

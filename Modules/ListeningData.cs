@@ -100,9 +100,9 @@ namespace VRPC.ListeningDataManager
 
         private static void UpdateListeningDataFile()
         {
-            log.Write($"[ListeningData] Attempting to save to file.");
             SongData songData = ReadDataFile();
             if (ErrorReadingFromFile) { ErrorReadingFromFile = false; return; }
+            log.Write($"[ListeningData] Attempting to save to file.");
 
             songData = UpdateSongData(songData);
             songData = SaveDataFile(songData);
