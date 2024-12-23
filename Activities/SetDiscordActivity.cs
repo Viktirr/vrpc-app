@@ -20,7 +20,7 @@ namespace VRPC.DiscordRPCManager.Activities {
                         serviceName = sr.ReadLine()?.Trim();
                     }
 
-                    if (serviceName == "Youtube Music")
+                    if (serviceName == "YouTube Music")
                     {
                         YouTubeMusic.UpdateRPC();
                     }

@@ -28,7 +28,7 @@ class Program
         {
             int nextNewLine = message.IndexOf("\n", seekFrom);
 
-            if (nextNewLine == -1) { currentLine = message.Substring(seekFrom); }
+            if (nextNewLine < 0) { currentLine = message.Substring(seekFrom); }
             else { currentLine = message.Substring(seekFrom, nextNewLine); }
 
             messageDictionary.Add(i, currentLine);
@@ -50,38 +50,24 @@ class Program
             return false;
         }
 
-        if (messageDictionary[0].Contains("Program"))
-        {
-            if (messageDictionary[1].Contains("Shutdown"))
-            {
-                log.Write("[Main] Possible shutdown requested.");
-                CancellationToken ct = new CancellationToken();
-                ListeningData.Heartbeat(ct, true);
-            }
-            else if (messageDictionary[1].Contains("Started"))
-            {
-                NativeMessaging.SendMessage(NativeMessaging.EncodeMessage("Hello"));
-            }
-            else if (messageDictionary[1].Contains("Heartbeat"))
-            {
-                NativeMessaging.SendMessage(NativeMessaging.EncodeMessage("Alive"));
-            }
-        }
+        if (messageDictionary[0].Contains("GET_RPC_INFO")) { NativeMessagingCommands.SendRichPresence(); return; }
+        
+        if (messageDictionary[0].Contains("Program")) { NativeMessaging.ConnectivityStatus(messageDictionary); return; }
 
         // We make 2 tries to start Discord RPC in case the user started a new tab/refreshed the page.
-        if (!messageDictionary[0].Contains("Program")) { currentService = messageDictionary[0]; }
+        currentService = messageDictionary[0];
+        log.Write("[Main] Service selected: " + currentService);
         if (messageDictionary[1] == "Opened")
         {
             bool OpenDiscordRPCSuccess = OpenDiscordRPC();
-            if (!OpenDiscordRPCSuccess) { Thread.Sleep(1000); OpenDiscordRPC(); }
+            if (!OpenDiscordRPCSuccess) { Thread.Sleep(1000); OpenDiscordRPC(); return; }
         }
 
         if (messageDictionary[1] == "Closed")
         {
-            try { discordCancellationTokenSource.Cancel(); } catch (Exception e) { log.Warn($"[Main] Couldn't cancel Cancellation Token for Discord RPC, probably already cancelled? Exception {e.Data}"); }
+            try { discordCancellationTokenSource.Cancel(); return; } catch (Exception e) { log.Warn($"[Main] Couldn't cancel Cancellation Token for Discord RPC, probably already cancelled? Exception {e.Data}"); return; }
         }
     }
-
 
     static void UseDiscordRPC(CancellationToken token)
     {
