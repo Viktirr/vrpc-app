@@ -11,6 +11,7 @@ class Program
 {
     private static Log log = new Log();
     public static bool isDiscordRPCRunning = false;
+    public static bool isReceivingRPCData = false;
     private static string currentService = "";
     private static CancellationTokenSource discordCancellationTokenSource = new CancellationTokenSource();
     private static CancellationToken discordCancellationToken = discordCancellationTokenSource.Token;
@@ -73,6 +74,7 @@ class Program
     {
         log.Info("[Main] Attempting to start Discord RPC");
         isDiscordRPCRunning = true;
+        isReceivingRPCData = true;
         DiscordRPCManager discordRPC = new DiscordRPCManager();
         discordRPC.Init(currentService);
         discordRPC.Start(token);
@@ -85,6 +87,7 @@ class Program
         discordCancellationTokenSource.TryReset();
         discordCancellationTokenSource.Dispose();
         isDiscordRPCRunning = false;
+        isReceivingRPCData = false;
     }
 
     static void StartDiscordRPC()

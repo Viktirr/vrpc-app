@@ -10,6 +10,7 @@ namespace VRPC.DiscordRPCManager
 {
     public static class DiscordRPCData
     {
+        public static bool forceUpdateDiscordRPC = false;
         public static RichPresence richPresenceData = new RichPresence() { Details = "---" };
     }
     class DiscordRPCManager : IDisposable
@@ -92,6 +93,7 @@ namespace VRPC.DiscordRPCManager
 
                         for (int i = 0; i < attemptsPerFileChecks; i++)
                         {
+                            if (DiscordRPCData.forceUpdateDiscordRPC == true) { DiscordRPCData.forceUpdateDiscordRPC = false; break; }
                             Thread.Sleep(checkDelay);
                         }
                     }
