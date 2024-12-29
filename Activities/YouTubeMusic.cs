@@ -229,8 +229,8 @@ namespace VRPC.DiscordRPCManager.Activities
                 {
                     if (!string.IsNullOrEmpty(songName))
                     {
-                        if (richPresence.Details != songName) { DiscordRPCData.forceUpdateDiscordRPC = true; }
                         richPresence.Details = songName;
+                        if (richPresence.Details != songName) { DiscordRPCData.forceUpdateDiscordRPC = true; }
                     }
 
                     if (!string.IsNullOrEmpty(artistName))
