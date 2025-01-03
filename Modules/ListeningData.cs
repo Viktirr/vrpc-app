@@ -71,6 +71,7 @@ namespace VRPC.ListeningDataManager
             {
                 string json = File.ReadAllText(filePath, Encoding.UTF8);
                 songData = JsonSerializer.Deserialize<SongData>(json) ?? new SongData();
+                ErrorReadingFromFile = false;
             }
             catch
             {
@@ -108,18 +109,24 @@ namespace VRPC.ListeningDataManager
         private static void UpdateListeningDataFile()
         {
             SongData songData = ReadDataFile();
+            bool fileExists = CheckDataFileExists();
+            if (!fileExists) {
+                songData = UpdateSongData(songData);
+                SaveDataFile(songData);
+                ErrorReadingFromFile = false;
+                activeSongInSeconds = 0;
+                return;
+            }
+
             if (ErrorReadingFromFile)
             {
-                bool fileExists = CheckDataFileExists();
-                if (fileExists == true) { return; }
-                songData = SaveDataFile(songData);
                 ErrorReadingFromFile = false;
                 return;
             }
             log.Write($"[ListeningData] Attempting to save to file.");
 
             songData = UpdateSongData(songData);
-            songData = SaveDataFile(songData);
+            SaveDataFile(songData);
             activeSongInSeconds = 0;
         }
 
