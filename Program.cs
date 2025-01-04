@@ -1,10 +1,7 @@
-﻿using System;
-using System.Linq;
-using VRPC.DiscordRPCManager;
+﻿using VRPC.DiscordRPCManager;
 using VRPC.Logging;
 using VRPC.NativeMessasing;
 using VRPC.Configuration;
-using DiscordRPC;
 using VRPC.ListeningDataManager;
 
 class Program
@@ -31,7 +28,9 @@ class Program
             int nextNewLine = message.IndexOf("\n", seekFrom);
 
             if (nextNewLine < 0) { currentLine = message.Substring(seekFrom); }
-            else { currentLine = message.Substring(seekFrom, nextNewLine); }
+            else {
+                currentLine = message.Substring(seekFrom, nextNewLine - seekFrom);
+            }
 
             messageDictionary.Add(i, currentLine);
 
@@ -54,6 +53,8 @@ class Program
 
         if (messageDictionary[0].Contains("GET_RPC_INFO")) { NativeMessagingCommands.SendRichPresence(); return; }
         if (messageDictionary[0].Contains("GET_CONFIG_FULL")) { NativeMessagingCommands.SendConfigFull(); return; }
+        if (messageDictionary[0].Contains("GET_CONFIG_INFO")) { if (messageDictionary.Count > 1) { NativeMessagingCommands.SendConfigDetailed(messageDictionary[1]); return; } }
+        if (messageDictionary[0].Contains("SET_CONFIG")) { NativeMessagingCommands.SetConfig(messageDictionary); return; }
         
         if (messageDictionary[0].Contains("Program")) { NativeMessaging.ConnectivityStatus(messageDictionary); return; }
 
@@ -136,11 +137,11 @@ class Program
 
     static void Main(string[] args)
     {
-        VRPCSettings.checkIfApplicationDataFolderExists();
-        VRPCSettings.checkSettings();
+        VRPCSettings.CheckIfApplicationDataFolderExists();
+        VRPCSettings.CheckSettings();
         log.Write("[Main] Reading Settings from file.");
 
-        log.Clear();
+        if (VRPCSettings.settingsData.DisableClearingLogs == false) { log.Clear(); }
 
         try { Log log = new Log(); }
         catch (Exception e) { Console.WriteLine($"Could not initialize logging. Exception {e.Data}"); }

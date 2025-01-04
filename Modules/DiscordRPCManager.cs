@@ -1,10 +1,6 @@
-﻿using System.IO;
-using System.Diagnostics;
-using System.ComponentModel;
-using DiscordRPC;
+﻿using DiscordRPC;
 using VRPC.Logging;
 using VRPC.DiscordRPCManager.Activities;
-using System.Collections.ObjectModel;
 
 namespace VRPC.DiscordRPCManager
 {

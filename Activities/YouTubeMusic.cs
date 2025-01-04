@@ -1,4 +1,3 @@
-using System;
 using VRPC.Logging;
 using VRPC.Configuration;
 using VRPC.ListeningDataManager;

@@ -37,7 +37,7 @@ namespace VRPC.NativeMessasing
 
                 NativeMessaging.SendMessage(NativeMessaging.EncodeMessage(RPCString));
             }
-            catch (Exception e) { log.Write($"Couldn't send RPC data to extension. Exception: {e.Data}. RPCString: {RPCString}"); }
+            catch (Exception e) { log.Write($"[NativeMessagingCommands] Couldn't send RPC data to extension. Exception: {e.Data}. RPCString: {RPCString}"); }
         }
 
         public static void SendConfigFull() {
@@ -47,12 +47,52 @@ namespace VRPC.NativeMessasing
             {
                 log.Write("[NativeMessagingCommands] Sending full configuration data.");
                 var settingsData = VRPCSettings.settingsData;
+                
                 string jsonSettings = JsonConvert.SerializeObject(settingsData);
                 NativeMessaging.SendMessage(NativeMessaging.EncodeMessage($"CONFIG: {jsonSettings}"));
             }
             catch (Exception e)
             {
-                log.Write($"Couldn't send configuration data to extension. Exception: {e.Message}");
+                log.Write($"[NativeMessagingCommands] Couldn't send configuration data to extension. Exception: {e.Message}");
+            }
+        }
+
+        public static void SendConfigDetailed(string config) {
+            Log log = new Log();
+
+            try
+            {
+                log.Write($"[NativeMessagingCommands] Sending detailed configuration data for {config}.");
+                var settingsData = VRPCSettings.GetSetting(config);
+                
+                string jsonSettings = JsonConvert.SerializeObject(settingsData);
+                NativeMessaging.SendMessage(NativeMessaging.EncodeMessage($"CONFIGINFO: {jsonSettings}"));
+            }
+            catch (Exception e)
+            {
+                log.Write($"Couldn't send detailed configuration data to extension. Exception: {e.Message}");
+            }
+        }
+
+        public static void SetConfig(Dictionary<int,string> config) {
+            // Receiving message looks like this:
+            // SET_CONFIG
+            // ConfigName
+            // Value
+
+            Log log = new Log();
+
+            try
+            {
+                log.Write($"[NativeMessagingCommands] Setting configuration data.");
+                string configName = config[1].ToString();
+                string configValue = config[2].ToString();
+
+                VRPCSettings.SetSetting(configName, configValue);
+            }
+            catch (Exception e)
+            {
+                log.Write($"[NativeMessagingCommands] Couldn't set configuration data. Exception: {e.Message}");
             }
         }
     }

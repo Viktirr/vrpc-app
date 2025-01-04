@@ -12,7 +12,6 @@ namespace VRPC.Logging
 
         public void Clear()
         {
-            if (disableLogClears == true) { return; }
             try
             {
                 File.WriteAllText(filePath, string.Empty);

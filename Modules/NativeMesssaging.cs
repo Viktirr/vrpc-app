@@ -1,4 +1,3 @@
-using System;
 using System.Text;
 using System.Text.Json;
 using VRPC.Logging;
@@ -57,9 +56,9 @@ namespace VRPC.NativeMessasing
             Console.OpenStandardInput().Read(messageBytes, 0, messageLength);
 
             string message = Encoding.UTF8.GetString(messageBytes);
-            string finalMessage = "";
+            string? finalMessage = "";
             try { finalMessage = JsonSerializer.Deserialize<string>(message); }
-            catch { log.Write("Couldn't deserialize json"); }
+            catch { log.Write("[NativeMessaging] Couldn't deserialize received json. Assuming connection is closed. Exiting."); Environment.Exit(0); }
             return finalMessage;
         }
 

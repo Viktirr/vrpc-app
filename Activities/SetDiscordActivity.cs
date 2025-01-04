@@ -1,5 +1,3 @@
-using System;
-using DiscordRPC;
 using VRPC.Logging;
 using VRPC.Configuration;
 
