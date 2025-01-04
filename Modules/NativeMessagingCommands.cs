@@ -1,10 +1,8 @@
-using System;
-using System.Linq.Expressions;
-using System.Runtime.CompilerServices;
 using DiscordRPC;
-using DiscordRPC.Helper;
 using VRPC.DiscordRPCManager;
 using VRPC.Logging;
+using VRPC.Configuration;
+using Newtonsoft.Json;
 
 namespace VRPC.NativeMessasing
 {
@@ -40,6 +38,22 @@ namespace VRPC.NativeMessasing
                 NativeMessaging.SendMessage(NativeMessaging.EncodeMessage(RPCString));
             }
             catch (Exception e) { log.Write($"Couldn't send RPC data to extension. Exception: {e.Data}. RPCString: {RPCString}"); }
+        }
+
+        public static void SendConfigFull() {
+            Log log = new Log();
+
+            try
+            {
+                log.Write("[NativeMessagingCommands] Sending full configuration data.");
+                var settingsData = VRPCSettings.settingsData;
+                string jsonSettings = JsonConvert.SerializeObject(settingsData);
+                NativeMessaging.SendMessage(NativeMessaging.EncodeMessage($"CONFIG: {jsonSettings}"));
+            }
+            catch (Exception e)
+            {
+                log.Write($"Couldn't send configuration data to extension. Exception: {e.Message}");
+            }
         }
     }
 }

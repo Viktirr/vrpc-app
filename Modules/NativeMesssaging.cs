@@ -57,7 +57,10 @@ namespace VRPC.NativeMessasing
             Console.OpenStandardInput().Read(messageBytes, 0, messageLength);
 
             string message = Encoding.UTF8.GetString(messageBytes);
-            return JsonSerializer.Deserialize<string>(message);
+            string finalMessage = "";
+            try { finalMessage = JsonSerializer.Deserialize<string>(message); }
+            catch { log.Write("Couldn't deserialize json"); }
+            return finalMessage;
         }
 
         public static byte[] EncodeMessage(string messageContent)

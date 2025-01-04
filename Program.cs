@@ -20,6 +20,7 @@ class Program
 
     static void StatusUpdate(string message)
     {
+        if (message == null || message == "") { return; }
         int newLineCount = message.Count(c => c == '\n');
         int seekFrom = 0;
         string currentLine;
@@ -52,19 +53,24 @@ class Program
         }
 
         if (messageDictionary[0].Contains("GET_RPC_INFO")) { NativeMessagingCommands.SendRichPresence(); return; }
+        if (messageDictionary[0].Contains("GET_CONFIG_FULL")) { NativeMessagingCommands.SendConfigFull(); return; }
         
         if (messageDictionary[0].Contains("Program")) { NativeMessaging.ConnectivityStatus(messageDictionary); return; }
 
         // We make 2 tries to start Discord RPC in case the user started a new tab/refreshed the page.
         currentService = messageDictionary[0];
         log.Write("[Main] Service selected: " + currentService);
-        if (messageDictionary[1] == "Opened")
+
+        // Fix The given key '1' was not present in the dictionary.
+        if (messageDictionary.Count < 2) { return; }
+
+        if (messageDictionary[1].Contains("Opened"))
         {
             bool OpenDiscordRPCSuccess = OpenDiscordRPC();
             if (!OpenDiscordRPCSuccess) { Thread.Sleep(1000); OpenDiscordRPC(); return; }
         }
 
-        if (messageDictionary[1] == "Closed")
+        if (messageDictionary[1].Contains("Closed"))
         {
             try { discordCancellationTokenSource.Cancel(); return; } catch (Exception e) { log.Warn($"[Main] Couldn't cancel Cancellation Token for Discord RPC, probably already cancelled? Exception {e.Data}"); return; }
         }
