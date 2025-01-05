@@ -1,0 +1,7 @@
+{
+  "name": "vrpc",
+  "description": "Transfers Rich Presence data to Discord",
+  "path": "C:\\Users\\matov\\Desktop\\Work\\Mine\\DiscordMusicRPC\\DiscordRPCTest\\vrpc-app\\bin\\Debug\\net6.0\\VRPC.exe",
+  "type": "stdio",
+  "allowed_extensions": [ "vrpc@viktir.com" ]
+}
