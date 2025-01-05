@@ -6,8 +6,6 @@ namespace VRPC.Logging
 {
     class Log
     {
-        private bool writeEnabled = VRPCSettings.settingsData.LoggingWriteEnabled;
-        private bool disableLogClears = VRPCSettings.settingsData.DisableClearingLogs;
         private string filePath = VRPCSettings.LogPath;
 
         public void Clear()
@@ -24,7 +22,7 @@ namespace VRPC.Logging
 
         public void Write(string? content)
         {
-            if (!writeEnabled) { return; }
+            if (!VRPCSettings.settingsData.LoggingWriteEnabled) { return; }
             try
             {
                 string logEntry = $"[{DateTime.Now:yyyy-MM-dd HH:mm:ss}] {content}";

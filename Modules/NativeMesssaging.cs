@@ -13,16 +13,18 @@ namespace VRPC.NativeMessasing
             {
                 if (messageDictionary[1].Contains("Shutdown"))
                 {
-                    log.Write("[Main] Possible shutdown requested.");
+                    log.Write("[NativeMessaging] Possible shutdown requested.");
                     CancellationToken ct = new CancellationToken();
                     ListeningData.Heartbeat(ct, true);
                 }
                 else if (messageDictionary[1].Contains("Started"))
                 {
+                    log.Write("[NativeMessaging] Sent Hello status heartbeat to the extension");
                     NativeMessaging.SendMessage(NativeMessaging.EncodeMessage("Hello"));
                 }
                 else if (messageDictionary[1].Contains("Heartbeat"))
                 {
+                    log.Write("[NativeMessaging] Sent Alive status heartbeat to the extension");
                     NativeMessaging.SendMessage(NativeMessaging.EncodeMessage("Alive"));
                 }
             }

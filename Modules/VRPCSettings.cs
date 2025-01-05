@@ -21,13 +21,12 @@ namespace VRPC.Configuration
             try
             {
                 Directory.CreateDirectory(UserAppDataPath);
-                log.Write("Application data directory created.");
+                log.Write("[VRPCSettings] Application data directory created.");
             }
             catch (Exception e)
             {
-                Console.WriteLine($"FATAL: Application data directory was not able to be created. Quitting! Exception {e.Data}");
-                log.Write($"FATAL: Application data directory was not able to be created. Quitting! Exception {e.Data}");
-                Environment.Exit(1);
+                log.Write($"[VRPCSettings] FATAL: Application data directory was not able to be created. Quitting! Exception {e.Data}");
+                throw new Exception($"[VRPCSettings] FATAL: Application data directory was not able to be created. Quitting! Exception {e.Data}");
             }
         }
         public static class SettingsInfo
@@ -153,6 +152,8 @@ namespace VRPC.Configuration
                         {
                             property.SetValue(settingsData, value);
                             log.Info($"[VRPCSettings] Updated setting {configName} to {value}.");
+                            SaveConfigFile(settingsData);
+                            log.Write($"[VRPCSettings] Saved settings to file.");
                         }
                         else
                         {
