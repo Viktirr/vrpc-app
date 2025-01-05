@@ -1,17 +1,22 @@
-﻿using System.IO;
-using System.Diagnostics;
-using System.ComponentModel;
-using DiscordRPC;
+﻿using DiscordRPC;
 using VRPC.Logging;
 using VRPC.DiscordRPCManager.Activities;
-using System.Collections.ObjectModel;
 
 namespace VRPC.DiscordRPCManager
 {
+    public static class DiscordRPCData
+    {
+        public static bool forceUpdateDiscordRPC = false;
+        public static RichPresence richPresenceData = new RichPresence() { Details = "---" };
+    }
     class DiscordRPCManager : IDisposable
     {
+        public static RichPresence richPresence
+        {
+            get => DiscordRPCData.richPresenceData;
+            set => DiscordRPCData.richPresenceData = value;
+        }
         protected static DiscordRpcClient? client;
-        protected static RichPresence richPresence = new RichPresence() { Details = "---" };
         private static Log log = new Log();
         private Dictionary<string, string> serviceList = new Dictionary<string, string>
         {
@@ -28,7 +33,7 @@ namespace VRPC.DiscordRPCManager
             catch (Exception e) { Console.WriteLine($"Could not initialize logging. {e.Data}"); }
 
             string currentServiceDiscordId;
-            try { currentServiceDiscordId = serviceList[service]; } catch (Exception e) { log.Warn($"[DiscordRPC] Couldn't get current service, using vrpc. Exception: {e.Data}"); currentServiceDiscordId = serviceList[service]; }
+            try { currentServiceDiscordId = serviceList[service]; } catch (Exception e) { log.Warn($"[DiscordRPC] Couldn't get current service, using vrpc. Exception: {e.Data}. Service which was not found: {service}"); currentServiceDiscordId = serviceList["Default"]; }
 
             try
             {
@@ -84,6 +89,7 @@ namespace VRPC.DiscordRPCManager
 
                         for (int i = 0; i < attemptsPerFileChecks; i++)
                         {
+                            if (DiscordRPCData.forceUpdateDiscordRPC == true) { DiscordRPCData.forceUpdateDiscordRPC = false; break; }
                             Thread.Sleep(checkDelay);
                         }
                     }

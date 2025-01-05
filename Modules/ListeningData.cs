@@ -1,3 +1,4 @@
+using System.IO;
 using System.Text.Encodings;
 using System.Text.Json;
 using System.Text.RegularExpressions;
@@ -29,7 +30,7 @@ namespace VRPC.ListeningDataManager
             // "SongsData": {
             // ["SongName_ArtistName"]: [{"name":"SongName"},{"author":"ArtistName"},{"timelistened":"SongTotalSeconds"}]
             // }
-            public string versionNumber { get; set; } = "0.1";
+            public string versionNumber { get; set; } = "0.11";
 
             public int TotalListened { get; set; } = 0;
             public Dictionary<string, Dictionary<string, string>> SongsData { get; set; } = new Dictionary<string, Dictionary<string, string>>();
@@ -68,8 +69,9 @@ namespace VRPC.ListeningDataManager
             SongData songData = new SongData();
             try
             {
-                string json = System.IO.File.ReadAllText(filePath, Encoding.UTF8);
+                string json = File.ReadAllText(filePath, Encoding.UTF8);
                 songData = JsonSerializer.Deserialize<SongData>(json) ?? new SongData();
+                ErrorReadingFromFile = false;
             }
             catch
             {
@@ -78,6 +80,12 @@ namespace VRPC.ListeningDataManager
                 return songData;
             }
             return songData;
+        }
+
+        private static bool CheckDataFileExists()
+        {
+            if (File.Exists(filePath)) { return true; }
+            return false;
         }
 
         private static SongData UpdateSongData(SongData songData)
@@ -92,7 +100,7 @@ namespace VRPC.ListeningDataManager
             try
             {
                 string jsonString = JsonSerializer.Serialize(songData, new JsonSerializerOptions { WriteIndented = true });
-                System.IO.File.WriteAllText(filePath, jsonString, Encoding.UTF8);
+                File.WriteAllText(filePath, jsonString, Encoding.UTF8);
             }
             catch { log.Error("[ListeningData] Couldn't write to file"); }
             return songData;
@@ -100,12 +108,25 @@ namespace VRPC.ListeningDataManager
 
         private static void UpdateListeningDataFile()
         {
-            log.Write($"[ListeningData] Attempting to save to file.");
             SongData songData = ReadDataFile();
-            if (ErrorReadingFromFile) { ErrorReadingFromFile = false; return; }
+            bool fileExists = CheckDataFileExists();
+            if (!fileExists) {
+                songData = UpdateSongData(songData);
+                SaveDataFile(songData);
+                ErrorReadingFromFile = false;
+                activeSongInSeconds = 0;
+                return;
+            }
+
+            if (ErrorReadingFromFile)
+            {
+                ErrorReadingFromFile = false;
+                return;
+            }
+            log.Write($"[ListeningData] Attempting to save to file.");
 
             songData = UpdateSongData(songData);
-            songData = SaveDataFile(songData);
+            SaveDataFile(songData);
             activeSongInSeconds = 0;
         }
 

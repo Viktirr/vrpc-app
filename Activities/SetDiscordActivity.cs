@@ -1,5 +1,3 @@
-using System;
-using DiscordRPC;
 using VRPC.Logging;
 using VRPC.Configuration;
 
@@ -20,7 +18,7 @@ namespace VRPC.DiscordRPCManager.Activities {
                         serviceName = sr.ReadLine()?.Trim();
                     }
 
-                    if (serviceName == "Youtube Music")
+                    if (serviceName == "YouTube Music")
                     {
                         YouTubeMusic.UpdateRPC();
                     }

@@ -1,4 +1,3 @@
-using System;
 using VRPC.Logging;
 using VRPC.Configuration;
 using VRPC.ListeningDataManager;
@@ -31,7 +30,8 @@ namespace VRPC.DiscordRPCManager.Activities
                 {
                     return true;
                 }
-            } catch { }
+            }
+            catch { }
             return false;
         }
 
@@ -63,13 +63,13 @@ namespace VRPC.DiscordRPCManager.Activities
         }
         private static void UpdateStatus(string? songStatus, int songInSecondsCurrent)
         {
-            if (songStatus != "Playing" && songStatus != "Paused")
-            {
-                richPresence.Assets.SmallImageKey = "";
-                richPresence.Assets.SmallImageText = "";
-            }
             try
             {
+                if (songStatus != "Playing" && songStatus != "Paused")
+                {
+                    richPresence.Assets.SmallImageKey = "";
+                    richPresence.Assets.SmallImageText = "";
+                }
                 if (songStatus == "Playing")
                 {
                     richPresence.Assets.SmallImageKey = "playing";
@@ -96,40 +96,49 @@ namespace VRPC.DiscordRPCManager.Activities
 
         private static void UpdateAlbum(string? albumName, string? releaseYear, bool isVideo = false)
         {
-            if (IsNull(albumName) && IsNull(releaseYear) || isVideo == true)
+            try
             {
-                richPresence.Assets.LargeImageText = "Listening on YouTube Music";
+                if (IsNull(albumName) && IsNull(releaseYear) || isVideo == true)
+                {
+                    richPresence.Assets.LargeImageText = "Listening on YouTube Music";
+                }
+                else if (IsNull(releaseYear))
+                {
+                    richPresence.Assets.LargeImageText = $"{albumName}";
+                }
+                else if (IsNull(albumName))
+                {
+                    richPresence.Assets.LargeImageText = $"Released {releaseYear}";
+                }
+                else
+                {
+                    richPresence.Assets.LargeImageText = $"{albumName} | Released {releaseYear}";
+                }
             }
-            else if (IsNull(releaseYear))
-            {
-                richPresence.Assets.LargeImageText = $"{albumName}";
-            }
-            else if (IsNull(albumName))
-            {
-                richPresence.Assets.LargeImageText = $"Released {releaseYear}";
-            }
-            else
-            {
-                richPresence.Assets.LargeImageText = $"{albumName} | Released {releaseYear}";
-            }
+            catch { log.Write("[YouTube Music] Something went wrong updating album to Rich Presence."); }
         }
 
         private static void UpdateButton(string? songId)
         {
-            if (songId == null || songId == "null" || songId == "")
+            try
             {
-                richPresence.Buttons = null;
-                return;
-            }
-            else {
-                richPresence.Buttons = new Button[]
+                if (songId == null || songId == "null" || songId == "")
                 {
+                    richPresence.Buttons = null;
+                    return;
+                }
+                else
+                {
+                    richPresence.Buttons = new Button[]
+                    {
                     new Button()
                     {
                         Label = "Listen on YouTube Music", Url=$"https://music.youtube.com/watch?v={songId}"
                     }
-                };
+                    };
+                }
             }
+            catch { log.Write("[YouTube Music] Something went wrong updating buttons to Rich Presence"); }
         }
 
         public static void UpdateRPC()
@@ -139,14 +148,18 @@ namespace VRPC.DiscordRPCManager.Activities
                 sr.ReadLine();
                 string? songName = sr.ReadLine()?.Trim();
 
-                if (songName == "" || songName == "null" || songName == null)
+                try
                 {
-                    richPresence.Details = "Main menu";
-                    richPresence.State = "Browsing";
-                    richPresence.Assets.LargeImageKey = "ytmusic-vrpc";
-                    richPresence.Assets.LargeImageText = "YouTube Music";
-                    return;
+                    if (songName == "" || songName == "null" || songName == null)
+                    {
+                        richPresence.Details = "Main menu";
+                        richPresence.State = "Browsing";
+                        richPresence.Assets.LargeImageKey = "ytmusic-vrpc";
+                        richPresence.Assets.LargeImageText = "YouTube Music";
+                        return;
+                    }
                 }
+                catch { log.Write("[YouTube Music] Something went wrong upon setting Rich Presence to Browsing."); }
 
                 string? artistName = sr.ReadLine()?.Trim();
                 string? songDurationRaw = sr.ReadLine()?.Trim();
@@ -211,15 +224,19 @@ namespace VRPC.DiscordRPCManager.Activities
                 }
                 catch (Exception e) { log.Warn($"[Youtube Music] Couldn't get the song duration, will use a previously set value. Error: {e.Data}"); }
 
-                if (!string.IsNullOrEmpty(songName))
+                try
                 {
-                    richPresence.Details = songName;
-                }
+                    if (!string.IsNullOrEmpty(songName))
+                    {
+                        richPresence.Details = songName;
+                        if (richPresence.Details != songName) { DiscordRPCData.forceUpdateDiscordRPC = true; }
+                    }
 
-                if (!string.IsNullOrEmpty(artistName))
-                {
-                    richPresence.State = artistName;
-                }
+                    if (!string.IsNullOrEmpty(artistName))
+                    {
+                        richPresence.State = artistName;
+                    }
+                } catch { log.Write("[YouTube Music] Something went wrong setting artist and song name to Rich Presence"); }
 
                 try
                 {
@@ -229,7 +246,7 @@ namespace VRPC.DiscordRPCManager.Activities
                         richPresence.Timestamps.End = DateTime.UtcNow + TimeSpan.FromSeconds(songInSeconds - songInSecondsCurrent);
                     }
                 }
-                catch { }
+                catch { log.Write("[YouTube Music] Something went wrong setting timestamps to Rich Presence"); }
 
                 bool isVideo = IsVideo(albumName, releaseYear);
                 UpdateListeningData(songName, artistName, songStatus);

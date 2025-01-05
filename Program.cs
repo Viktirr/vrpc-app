@@ -1,16 +1,14 @@
-﻿using System;
-using System.Linq;
-using VRPC.DiscordRPCManager;
+﻿using VRPC.DiscordRPCManager;
 using VRPC.Logging;
 using VRPC.NativeMessasing;
 using VRPC.Configuration;
-using DiscordRPC;
 using VRPC.ListeningDataManager;
 
 class Program
 {
     private static Log log = new Log();
     public static bool isDiscordRPCRunning = false;
+    public static bool isReceivingRPCData = false;
     private static string currentService = "";
     private static CancellationTokenSource discordCancellationTokenSource = new CancellationTokenSource();
     private static CancellationToken discordCancellationToken = discordCancellationTokenSource.Token;
@@ -19,6 +17,7 @@ class Program
 
     static void StatusUpdate(string message)
     {
+        if (message == null || message == "") { return; }
         int newLineCount = message.Count(c => c == '\n');
         int seekFrom = 0;
         string currentLine;
@@ -28,8 +27,10 @@ class Program
         {
             int nextNewLine = message.IndexOf("\n", seekFrom);
 
-            if (nextNewLine == -1) { currentLine = message.Substring(seekFrom); }
-            else { currentLine = message.Substring(seekFrom, nextNewLine); }
+            if (nextNewLine < 0) { currentLine = message.Substring(seekFrom); }
+            else {
+                currentLine = message.Substring(seekFrom, nextNewLine - seekFrom);
+            }
 
             messageDictionary.Add(i, currentLine);
 
@@ -50,43 +51,37 @@ class Program
             return false;
         }
 
-        if (messageDictionary[0].Contains("Program"))
-        {
-            if (messageDictionary[1].Contains("Shutdown"))
-            {
-                log.Write("[Main] Possible shutdown requested.");
-                CancellationToken ct = new CancellationToken();
-                ListeningData.Heartbeat(ct, true);
-            }
-            else if (messageDictionary[1].Contains("Started"))
-            {
-                NativeMessaging.SendMessage(NativeMessaging.EncodeMessage("Hello"));
-            }
-            else if (messageDictionary[1].Contains("Heartbeat"))
-            {
-                NativeMessaging.SendMessage(NativeMessaging.EncodeMessage("Alive"));
-            }
-        }
+        if (messageDictionary[0].Contains("GET_RPC_INFO")) { NativeMessagingCommands.SendRichPresence(); return; }
+        if (messageDictionary[0].Contains("GET_CONFIG_FULL")) { NativeMessagingCommands.SendConfigFull(); return; }
+        if (messageDictionary[0].Contains("GET_CONFIG_INFO")) { if (messageDictionary.Count > 1) { NativeMessagingCommands.SendConfigDetailed(messageDictionary[1]); return; } }
+        if (messageDictionary[0].Contains("SET_CONFIG")) { NativeMessagingCommands.SetConfig(messageDictionary); return; }
+        
+        if (messageDictionary[0].Contains("Program")) { NativeMessaging.ConnectivityStatus(messageDictionary); return; }
 
         // We make 2 tries to start Discord RPC in case the user started a new tab/refreshed the page.
-        if (!messageDictionary[0].Contains("Program")) { currentService = messageDictionary[0]; }
-        if (messageDictionary[1] == "Opened")
+        currentService = messageDictionary[0];
+        log.Write("[Main] Service selected: " + currentService);
+
+        // Fix The given key '1' was not present in the dictionary.
+        if (messageDictionary.Count < 2) { return; }
+
+        if (messageDictionary[1].Contains("Opened"))
         {
             bool OpenDiscordRPCSuccess = OpenDiscordRPC();
-            if (!OpenDiscordRPCSuccess) { Thread.Sleep(1000); OpenDiscordRPC(); }
+            if (!OpenDiscordRPCSuccess) { Thread.Sleep(1000); OpenDiscordRPC(); return; }
         }
 
-        if (messageDictionary[1] == "Closed")
+        if (messageDictionary[1].Contains("Closed"))
         {
-            try { discordCancellationTokenSource.Cancel(); } catch (Exception e) { log.Warn($"[Main] Couldn't cancel Cancellation Token for Discord RPC, probably already cancelled? Exception {e.Data}"); }
+            try { discordCancellationTokenSource.Cancel(); return; } catch (Exception e) { log.Warn($"[Main] Couldn't cancel Cancellation Token for Discord RPC, probably already cancelled? Exception {e.Data}"); return; }
         }
     }
-
 
     static void UseDiscordRPC(CancellationToken token)
     {
         log.Info("[Main] Attempting to start Discord RPC");
         isDiscordRPCRunning = true;
+        isReceivingRPCData = true;
         DiscordRPCManager discordRPC = new DiscordRPCManager();
         discordRPC.Init(currentService);
         discordRPC.Start(token);
@@ -99,6 +94,7 @@ class Program
         discordCancellationTokenSource.TryReset();
         discordCancellationTokenSource.Dispose();
         isDiscordRPCRunning = false;
+        isReceivingRPCData = false;
     }
 
     static void StartDiscordRPC()
@@ -141,11 +137,11 @@ class Program
 
     static void Main(string[] args)
     {
-        VRPCSettings.checkIfApplicationDataFolderExists();
-        VRPCSettings.checkSettings();
+        VRPCSettings.CheckIfApplicationDataFolderExists();
+        VRPCSettings.CheckSettings();
         log.Write("[Main] Reading Settings from file.");
 
-        log.Clear();
+        if (VRPCSettings.settingsData.DisableClearingLogs == false) { log.Clear(); }
 
         try { Log log = new Log(); }
         catch (Exception e) { Console.WriteLine($"Could not initialize logging. Exception {e.Data}"); }

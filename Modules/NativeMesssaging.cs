@@ -1,14 +1,35 @@
-using System;
 using System.Text;
 using System.Text.Json;
 using VRPC.Logging;
+using VRPC.ListeningDataManager;
 
-
-// Copy from Program.cs and also add a connected flag
 namespace VRPC.NativeMessasing
 {
     class NativeMessaging
     {
+        public static void ConnectivityStatus(Dictionary<int, string> messageDictionary)
+        {
+            if (messageDictionary[0].Contains("Program"))
+            {
+                if (messageDictionary[1].Contains("Shutdown"))
+                {
+                    log.Write("[NativeMessaging] Possible shutdown requested.");
+                    CancellationToken ct = new CancellationToken();
+                    ListeningData.Heartbeat(ct, true);
+                }
+                else if (messageDictionary[1].Contains("Started"))
+                {
+                    log.Write("[NativeMessaging] Sent Hello status heartbeat to the extension");
+                    NativeMessaging.SendMessage(NativeMessaging.EncodeMessage("Hello"));
+                }
+                else if (messageDictionary[1].Contains("Heartbeat"))
+                {
+                    log.Write("[NativeMessaging] Sent Alive status heartbeat to the extension");
+                    NativeMessaging.SendMessage(NativeMessaging.EncodeMessage("Alive"));
+                }
+            }
+
+        }
         static Log log = new Log();
 
         public static void UpdateRPCFile(string filePath, string content)
@@ -35,9 +56,12 @@ namespace VRPC.NativeMessasing
             int messageLength = BitConverter.ToInt32(rawLength, 0);
             byte[] messageBytes = new byte[messageLength];
             Console.OpenStandardInput().Read(messageBytes, 0, messageLength);
-            
+
             string message = Encoding.UTF8.GetString(messageBytes);
-            return JsonSerializer.Deserialize<string>(message);
+            string? finalMessage = "";
+            try { finalMessage = JsonSerializer.Deserialize<string>(message); }
+            catch { log.Write("[NativeMessaging] Couldn't deserialize received json. Assuming connection is closed. Exiting."); Environment.Exit(0); }
+            return finalMessage;
         }
 
         public static byte[] EncodeMessage(string messageContent)
