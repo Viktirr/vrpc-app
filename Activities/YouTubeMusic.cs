@@ -122,7 +122,7 @@ namespace VRPC.DiscordRPCManager.Activities
         {
             try
             {
-                if (songId == null || songId == "null" || songId == "")
+                if (songId == null || songId == "null" || songId == "" || VRPCSettings.settingsData.EnableListeningToButton == false)
                 {
                     richPresence.Buttons = null;
                     return;

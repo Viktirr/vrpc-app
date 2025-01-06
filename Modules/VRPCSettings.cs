@@ -67,7 +67,15 @@ namespace VRPC.Configuration
             public static Dictionary<string, string> EnableListeningData { get; } = new Dictionary<string, string> {
                 { "InternalName", "EnableListeningData" },
                 { "DisplayName", "Enable Listening Data" },
-                { "Description", "Save time listened locally" },
+                { "Description", "Save the time you listened to music locally" },
+                { "Visibility", "Shown" },
+                { "Type", "bool" }
+            };
+
+            public static Dictionary<string, string> EnableListeningToButton { get; } = new Dictionary<string, string> {
+                { "InternalName", "EnableListeningToButton" },
+                { "DisplayName", "Enable Listening To Button" },
+                { "Description", "Show 'Listen on ...' on Discord (Not visible to you)" },
                 { "Visibility", "Shown" },
                 { "Type", "bool" }
             };
@@ -76,6 +84,7 @@ namespace VRPC.Configuration
                 { "LoggingWriteEnabled", LoggingWriteEnabled },
                 { "DisableClearingLogs", DisableClearingLogs },
                 { "EnableDiscordRPC", EnableDiscordRPC },
+                { "EnableListeningToButton", EnableListeningToButton },
                 { "EnableListeningData", EnableListeningData }
             };
         }
@@ -85,6 +94,7 @@ namespace VRPC.Configuration
             public bool LoggingWriteEnabled { get; set; } = false;
             public bool DisableClearingLogs { get; set; } = true;
             public bool EnableDiscordRPC { get; set; } = true;
+            public bool EnableListeningToButton { get; set; } = true;
             public bool EnableListeningData { get; set; } = true;
         }
 
