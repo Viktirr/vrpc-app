@@ -3,6 +3,7 @@ using VRPC.Logging;
 using VRPC.NativeMessasing;
 using VRPC.Configuration;
 using VRPC.ListeningDataManager;
+using DiscordRPC;
 
 class Program
 {
@@ -28,7 +29,8 @@ class Program
             int nextNewLine = message.IndexOf("\n", seekFrom);
 
             if (nextNewLine < 0) { currentLine = message.Substring(seekFrom); }
-            else {
+            else
+            {
                 currentLine = message.Substring(seekFrom, nextNewLine - seekFrom);
             }
 
@@ -55,7 +57,7 @@ class Program
         if (messageDictionary[0].Contains("GET_CONFIG_FULL")) { NativeMessagingCommands.SendConfigFull(); return; }
         if (messageDictionary[0].Contains("GET_CONFIG_INFO")) { if (messageDictionary.Count > 1) { NativeMessagingCommands.SendConfigDetailed(messageDictionary[1]); return; } }
         if (messageDictionary[0].Contains("SET_CONFIG")) { NativeMessagingCommands.SetConfig(messageDictionary); return; }
-        
+
         if (messageDictionary[0].Contains("Program")) { NativeMessaging.ConnectivityStatus(messageDictionary); return; }
 
         // We make 2 tries to start Discord RPC in case the user started a new tab/refreshed the page.
@@ -79,22 +81,39 @@ class Program
 
     static void UseDiscordRPC(CancellationToken token)
     {
-        log.Info("[Main] Attempting to start Discord RPC");
-        isDiscordRPCRunning = true;
+        log.Info("[Main] Enabling Rich Presence");
         isReceivingRPCData = true;
         DiscordRPCManager discordRPC = new DiscordRPCManager();
         discordRPC.Init(currentService);
-        discordRPC.Start(token);
-        while (!token.IsCancellationRequested)
+        if (VRPCSettings.settingsData.EnableDiscordRPC == true)
         {
-            Thread.Sleep(500);
+            log.Info("[Main] Attempting to start Discord RPC");
+            isDiscordRPCRunning = true;
+            discordRPC.Start(token);
+            while (!token.IsCancellationRequested)
+            {
+                Thread.Sleep(500);
+            }
+            log.Info("[Main] Closing Discord RPC");
+            discordRPC.Dispose();
+            discordCancellationTokenSource.TryReset();
+            discordCancellationTokenSource.Dispose();
+            isDiscordRPCRunning = false;
+            isReceivingRPCData = false;
+            return;
         }
-        log.Info("[Main] Closing Discord RPC");
-        discordRPC.Dispose();
-        discordCancellationTokenSource.TryReset();
-        discordCancellationTokenSource.Dispose();
-        isDiscordRPCRunning = false;
-        isReceivingRPCData = false;
+        else
+        {
+            while (!token.IsCancellationRequested)
+            {
+                Thread.Sleep(500);
+            }
+            discordRPC.Dispose();
+            discordCancellationTokenSource.TryReset();
+            discordCancellationTokenSource.Dispose();
+            isDiscordRPCRunning = false;
+            isReceivingRPCData = false;
+        }
     }
 
     static void StartDiscordRPC()

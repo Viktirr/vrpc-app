@@ -7,6 +7,7 @@ namespace VRPC.DiscordRPCManager
     public static class DiscordRPCData
     {
         public static bool forceUpdateDiscordRPC = false;
+        public static string currentService = "Default";
         public static RichPresence richPresenceData = new RichPresence() { Details = "---" };
     }
     class DiscordRPCManager : IDisposable
@@ -33,7 +34,7 @@ namespace VRPC.DiscordRPCManager
             catch (Exception e) { Console.WriteLine($"Could not initialize logging. {e.Data}"); }
 
             string currentServiceDiscordId;
-            try { currentServiceDiscordId = serviceList[service]; } catch (Exception e) { log.Warn($"[DiscordRPC] Couldn't get current service, using vrpc. Exception: {e.Data}. Service which was not found: {service}"); currentServiceDiscordId = serviceList["Default"]; }
+            try { currentServiceDiscordId = serviceList[service]; DiscordRPCData.currentService = service; } catch (Exception e) { log.Warn($"[DiscordRPC] Couldn't get current service, using vrpc. Exception: {e.Data}. Service which was not found: {service}"); currentServiceDiscordId = serviceList["Default"]; }
 
             try
             {
@@ -62,6 +63,15 @@ namespace VRPC.DiscordRPCManager
             {
                 log.Error($"[DiscordRPC] Error initializing Discord RPC: {e.Message + e.StackTrace}");
             }
+
+            Thread updateActivity = new Thread(() => {
+                while (true)
+                {
+                    SetDiscordActivity.UpdateActivityFromFile();
+                    Thread.Sleep(1000);
+                }
+            });
+            updateActivity.Start();
         }
 
         public void Start(CancellationToken token)
@@ -73,8 +83,8 @@ namespace VRPC.DiscordRPCManager
             }
             client.Initialize();
 
-            const int checkDelay = 500;
-            const int attemptsPerFileChecks = 10;
+            const int checkDelay = 1000;
+            const int attemptsPerFileChecks = 5;
 
             try
             {
@@ -82,8 +92,6 @@ namespace VRPC.DiscordRPCManager
                 {
                     while (!token.IsCancellationRequested)
                     {
-                        SetDiscordActivity.UpdateActivityFromFile();
-
                         client.SetPresence(richPresence);
                         log.Info($"[DiscordRPC] Discord Rich Presence updated. Now {richPresence.Type} {richPresence.Details} by {richPresence.State}.");
 

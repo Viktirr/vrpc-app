@@ -28,7 +28,7 @@ namespace VRPC.NativeMessasing
                     endTime = richPresence.Timestamps.End.HasValue ? ((DateTimeOffset)richPresence.Timestamps.End.Value).ToUnixTimeSeconds().ToString() : "0";
                 } catch { log.Write("[NativeMessagingCommands] Couldn't fetch timestamps from rich presence."); }
 
-                try { RPCString = $"RPC: {richPresence.Details}{separator}{richPresence.State}{separator}{richPresence.Assets.LargeImageText}{separator}{richPresence.Assets.LargeImageKey}{separator}{Program.isDiscordRPCRunning}{separator}{startTime}{separator}{endTime}{separator}{Program.isReceivingRPCData}"; }
+                try { RPCString = $"RPC: {richPresence.Details}{separator}{richPresence.State}{separator}{richPresence.Assets.LargeImageText}{separator}{richPresence.Assets.LargeImageKey}{separator}{Program.isDiscordRPCRunning}{separator}{startTime}{separator}{endTime}{separator}{Program.isReceivingRPCData}{separator}{DiscordRPCData.currentService}"; }
                 catch
                 {
                     try { RPCString = $"RPC: EMPTY{separator}{Program.isDiscordRPCRunning}{separator}{Program.isReceivingRPCData}"; }

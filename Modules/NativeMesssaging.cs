@@ -51,8 +51,6 @@ namespace VRPC.NativeMessasing
             byte[] rawLength = new byte[byteLength];
             Console.OpenStandardInput().Read(rawLength, 0, byteLength);
 
-            // if (byteLength == 0) { Environment.Exit(0); } // Closes the application if standard input is closed (no bytes have been transferred).
-
             int messageLength = BitConverter.ToInt32(rawLength, 0);
             byte[] messageBytes = new byte[messageLength];
             Console.OpenStandardInput().Read(messageBytes, 0, messageLength);
@@ -60,7 +58,7 @@ namespace VRPC.NativeMessasing
             string message = Encoding.UTF8.GetString(messageBytes);
             string? finalMessage = "";
             try { finalMessage = JsonSerializer.Deserialize<string>(message); }
-            catch { log.Write("[NativeMessaging] Couldn't deserialize received json. Assuming connection is closed. Exiting."); Environment.Exit(0); }
+            catch { log.Write("[NativeMessaging] Couldn't deserialize received json. Assuming connection is closed. Exiting."); ListeningData.UpdateListeningDataFile(); Environment.Exit(0); }
             return finalMessage;
         }
 

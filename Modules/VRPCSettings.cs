@@ -59,7 +59,7 @@ namespace VRPC.Configuration
             public static Dictionary<string, string> EnableDiscordRPC { get; } = new Dictionary<string, string> {
                 { "InternalName", "EnableDiscordRPC" },
                 { "DisplayName", "Enable Discord RPC" },
-                { "Description", "Enable or disable Discord RPC" },
+                { "Description", "Show 'Listening to' status on Discord" },
                 { "Visibility", "Shown" },
                 { "Type", "bool" }
             };
@@ -67,7 +67,7 @@ namespace VRPC.Configuration
             public static Dictionary<string, string> EnableListeningData { get; } = new Dictionary<string, string> {
                 { "InternalName", "EnableListeningData" },
                 { "DisplayName", "Enable Listening Data" },
-                { "Description", "Enable or disable listening data" },
+                { "Description", "Save time listened locally" },
                 { "Visibility", "Shown" },
                 { "Type", "bool" }
             };

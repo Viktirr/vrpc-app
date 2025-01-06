@@ -106,7 +106,7 @@ namespace VRPC.ListeningDataManager
             return songData;
         }
 
-        private static void UpdateListeningDataFile()
+        public static void UpdateListeningDataFile()
         {
             SongData songData = ReadDataFile();
             bool fileExists = CheckDataFileExists();
@@ -123,7 +123,7 @@ namespace VRPC.ListeningDataManager
                 ErrorReadingFromFile = false;
                 return;
             }
-            log.Write($"[ListeningData] Attempting to save to file.");
+            log.Info($"[ListeningData] Attempting to save to file.");
 
             songData = UpdateSongData(songData);
             SaveDataFile(songData);
@@ -149,13 +149,6 @@ namespace VRPC.ListeningDataManager
         public static void Heartbeat(CancellationToken token, bool ShutdownRequested = false)
         {
             bool SavingEnabled = true;
-
-            if (ShutdownRequested)
-            {
-                log.Write("[ListeningData] Shutdown requested. Attempt saving to file.");
-                UpdateListeningDataFile();
-                return;
-            }
 
             while (true)
             {
