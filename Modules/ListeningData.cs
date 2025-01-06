@@ -108,6 +108,7 @@ namespace VRPC.ListeningDataManager
 
         public static void UpdateListeningDataFile()
         {
+            if (VRPCSettings.settingsData.EnableListeningData == false) { return; }
             SongData songData = ReadDataFile();
             bool fileExists = CheckDataFileExists();
             if (!fileExists) {
