@@ -22,6 +22,7 @@ namespace VRPC.ListeningDataManager
 
         private static string filePath = VRPCSettings.ListeningDataPath;
         private static bool ErrorReadingFromFile = true;
+        private static bool ErrorWritingToFile = true;
         private static DateTime LastDataUpdate;
 
         private class SongData
@@ -44,21 +45,46 @@ namespace VRPC.ListeningDataManager
 
                 string key = $"{songNameClean}_{artistNameClean}";
 
+                int currentTime = (int)DateTimeOffset.UtcNow.ToUnixTimeSeconds();
+
                 if (SongsData.ContainsKey(key))
                 {
                     try
                     {
                         SongsData[key]["timelistened"] = (int.Parse(SongsData[key]["timelistened"]) + songTotalSeconds).ToString();
                     }
-                    catch { log.Error($"[ListeningData] Couldn't get Time Listened for {key}. It's time won't be updated."); }
+                    catch { log.Error($"[ListeningData] Couldn't get Time Listened for {key}. It's time won't be updated if it doesn't exist."); }
+
+                    try
+                    {
+                        if (int.Parse(SongsData[key]["lastplayed"]) / 86400 != currentTime / 86400)
+                        {
+                            if (int.Parse(SongsData[key]["daylastplayedtimelistened"]) > int.Parse(SongsData[key]["daymostplayedtimelistened"]))
+                            {
+                                SongsData[key]["daymostplayed"] = (int.Parse(SongsData[key]["lastplayed"]) / 86400).ToString();
+                                SongsData[key]["daymostplayedtimelistened"] = SongsData[key]["daylastplayedtimelistened"];
+                            }
+                            SongsData[key]["daylastplayedtimelistened"] = activeSongInSeconds.ToString();
+                            SongsData[key]["lastplayed"] = currentTime.ToString();
+                        }
+                        else
+                        {
+                            SongsData[key]["daylastplayedtimelistened"] = (int.Parse(SongsData[key]["daylastplayedtimelistened"]) + songTotalSeconds).ToString();
+                        }
+                    }
+                    catch { log.Warn($"[ListeningData] Couldn't change most played or last played. If this message is shown only once per song, there's nothing to worry about."); }
 
                     if (!SongsData[key].ContainsKey("name")) { SongsData[key]["name"] = songName; }
                     if (!SongsData[key].ContainsKey("author")) { SongsData[key]["author"] = artistName; }
+                    if (!SongsData[key].ContainsKey("key")) { SongsData[key]["key"] = key; }
                     if (!SongsData[key].ContainsKey("timelistened")) { SongsData[key]["timelistened"] = songTotalSeconds.ToString(); }
-                    if (!SongsData[key].ContainsKey("firstlistened")) { SongsData[key]["firstlistened"] = (int.Parse(DateTimeOffset.UtcNow.ToUnixTimeSeconds().ToString()) - songTotalSeconds).ToString(); }
-                    if (!SongsData[key].ContainsKey("lastplayed")) { SongsData[key]["lastplayed"] = DateTimeOffset.UtcNow.ToUnixTimeSeconds().ToString(); }
+                    if (!SongsData[key].ContainsKey("firstlistened")) { SongsData[key]["firstlistened"] = (currentTime - songTotalSeconds).ToString(); }
+                    if (!SongsData[key].ContainsKey("lastplayed")) { SongsData[key]["lastplayed"] = currentTime.ToString(); }
+                    if (!SongsData[key].ContainsKey("daylastplayedtimelistened")) { SongsData[key]["daylastplayedtimelistened"] = songTotalSeconds.ToString(); }
+                    if (!SongsData[key].ContainsKey("daymostplayed")) { SongsData[key]["daymostplayed"] = (currentTime / 86400).ToString(); }
+                    if (!SongsData[key].ContainsKey("daymostplayedtimelistened")) { SongsData[key]["daymostplayedtimelistened"] = songTotalSeconds.ToString(); }
 
-                    SongsData[key]["lastplayed"] = DateTimeOffset.UtcNow.ToUnixTimeSeconds().ToString();
+                    SongsData[key]["lastplayed"] = currentTime.ToString();
                 }
                 else
                 {
@@ -66,9 +92,13 @@ namespace VRPC.ListeningDataManager
                     {
                         { "name", songName },
                         { "author", artistName },
+                        { "key", key },
                         { "timelistened", songTotalSeconds.ToString() },
-                        { "firstlistened", (int.Parse(DateTimeOffset.UtcNow.ToUnixTimeSeconds().ToString()) - songTotalSeconds).ToString() },
-                        { "lastplayed", DateTimeOffset.UtcNow.ToUnixTimeSeconds().ToString() }
+                        { "firstlistened", (currentTime - songTotalSeconds).ToString() },
+                        { "lastplayed", currentTime.ToString() },
+                        { "daylastplayedtimelistened", songTotalSeconds.ToString() },
+                        { "daymostplayed", (currentTime / 86400).ToString() },
+                        { "daymostplayedtimelistened", songTotalSeconds.ToString() }
                     };
                 }
             }
@@ -111,17 +141,19 @@ namespace VRPC.ListeningDataManager
             {
                 string jsonString = JsonSerializer.Serialize(songData, new JsonSerializerOptions { WriteIndented = true });
                 File.WriteAllText(filePath, jsonString, Encoding.UTF8);
+                ErrorWritingToFile = false;
             }
-            catch { log.Error("[ListeningData] Couldn't write to file"); }
+            catch { log.Error("[ListeningData] Couldn't write to file"); ErrorWritingToFile = true; }
             return songData;
         }
 
         public static void UpdateListeningDataFile()
         {
-            if (VRPCSettings.settingsData.EnableListeningData == false) { return; }
+            if (VRPCSettings.settingsData.EnableListeningData == false) { activeSongInSeconds = 0; return; }
             SongData songData = ReadDataFile();
             bool fileExists = CheckDataFileExists();
-            if (!fileExists) {
+            if (!fileExists)
+            {
                 songData = UpdateSongData(songData);
                 SaveDataFile(songData);
                 ErrorReadingFromFile = false;
@@ -129,15 +161,21 @@ namespace VRPC.ListeningDataManager
                 return;
             }
 
-            if (ErrorReadingFromFile)
+            if (ErrorReadingFromFile == true)
             {
                 ErrorReadingFromFile = false;
                 return;
             }
-            log.Info($"[ListeningData] Attempting to save to file.");
+
+            if (ErrorWritingToFile == true)
+            {
+                ErrorWritingToFile = false;
+                return;
+            }
 
             songData = UpdateSongData(songData);
             SaveDataFile(songData);
+            log.Info($"[ListeningData] Saved/updated.");
             activeSongInSeconds = 0;
         }
 

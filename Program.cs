@@ -60,13 +60,13 @@ class Program
 
         if (messageDictionary[0].Contains("Program")) { NativeMessaging.ConnectivityStatus(messageDictionary); return; }
 
-        // We make 2 tries to start Discord RPC in case the user started a new tab/refreshed the page.
         currentService = messageDictionary[0];
         log.Write("[Main] Service selected: " + currentService);
 
         // Fix The given key '1' was not present in the dictionary.
         if (messageDictionary.Count < 2) { return; }
 
+        // We make 2 tries to start Discord RPC in case the user started a new tab/refreshed the page.
         if (messageDictionary[1].Contains("Opened"))
         {
             bool OpenDiscordRPCSuccess = OpenDiscordRPC();
