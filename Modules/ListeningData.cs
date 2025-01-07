@@ -30,7 +30,7 @@ namespace VRPC.ListeningDataManager
             // "SongsData": {
             // ["SongName_ArtistName"]: [{"name":"SongName"},{"author":"ArtistName"},{"timelistened":"SongTotalSeconds"}]
             // }
-            public string versionNumber { get; set; } = "0.11";
+            public string versionNumber { get; set; } = "0.12";
 
             public int TotalListened { get; set; } = 0;
             public Dictionary<string, Dictionary<string, string>> SongsData { get; set; } = new Dictionary<string, Dictionary<string, string>>();
@@ -51,6 +51,14 @@ namespace VRPC.ListeningDataManager
                         SongsData[key]["timelistened"] = (int.Parse(SongsData[key]["timelistened"]) + songTotalSeconds).ToString();
                     }
                     catch { log.Error($"[ListeningData] Couldn't get Time Listened for {key}. It's time won't be updated."); }
+
+                    if (!SongsData[key].ContainsKey("name")) { SongsData[key]["name"] = songName; }
+                    if (!SongsData[key].ContainsKey("author")) { SongsData[key]["author"] = artistName; }
+                    if (!SongsData[key].ContainsKey("timelistened")) { SongsData[key]["timelistened"] = songTotalSeconds.ToString(); }
+                    if (!SongsData[key].ContainsKey("firstlistened")) { SongsData[key]["firstlistened"] = (int.Parse(DateTimeOffset.UtcNow.ToUnixTimeSeconds().ToString()) - songTotalSeconds).ToString(); }
+                    if (!SongsData[key].ContainsKey("lastplayed")) { SongsData[key]["lastplayed"] = DateTimeOffset.UtcNow.ToUnixTimeSeconds().ToString(); }
+
+                    SongsData[key]["lastplayed"] = DateTimeOffset.UtcNow.ToUnixTimeSeconds().ToString();
                 }
                 else
                 {
@@ -58,7 +66,9 @@ namespace VRPC.ListeningDataManager
                     {
                         { "name", songName },
                         { "author", artistName },
-                        { "timelistened", songTotalSeconds.ToString() }
+                        { "timelistened", songTotalSeconds.ToString() },
+                        { "firstlistened", (int.Parse(DateTimeOffset.UtcNow.ToUnixTimeSeconds().ToString()) - songTotalSeconds).ToString() },
+                        { "lastplayed", DateTimeOffset.UtcNow.ToUnixTimeSeconds().ToString() }
                     };
                 }
             }

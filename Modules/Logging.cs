@@ -22,7 +22,7 @@ namespace VRPC.Logging
 
         public void Write(string? content)
         {
-            if (!VRPCSettings.settingsData.LoggingWriteEnabled) { return; }
+            if (VRPCSettings.settingsData.LoggingWriteEnabled == false) { return; }
             try
             {
                 string logEntry = $"[{DateTime.Now:yyyy-MM-dd HH:mm:ss}] {content}";
