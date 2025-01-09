@@ -58,7 +58,7 @@ namespace VRPC.NativeMessasing
             string message = Encoding.UTF8.GetString(messageBytes);
             string? finalMessage = "";
             try { finalMessage = JsonSerializer.Deserialize<string>(message); }
-            catch { log.Write("[NativeMessaging] Couldn't deserialize received json. Assuming connection is closed. Exiting."); ListeningData.UpdateListeningDataFile(); Environment.Exit(0); }
+            catch { log.Write("[NativeMessaging] Couldn't deserialize received json. Assuming connection is closed. Exiting."); Environment.Exit(0); }
             return finalMessage;
         }
 

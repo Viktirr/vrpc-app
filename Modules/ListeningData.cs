@@ -1,12 +1,8 @@
-using System.IO;
-using System.Text.Encodings;
 using System.Text.Json;
 using System.Text.RegularExpressions;
-using System.Collections.Generic;
 using VRPC.Configuration;
 using VRPC.Logging;
 using System.Text;
-using System.Reflection.Metadata;
 
 namespace VRPC.ListeningDataManager
 {
@@ -18,20 +14,20 @@ namespace VRPC.ListeningDataManager
         private static string PreviousArtistName = string.Empty;
         private static int activeSongInSeconds = 0;
         private static Log log = new Log();
-        private static bool SongPlaying = false;
+        protected static bool SongPlaying = false;
 
         private static string filePath = VRPCSettings.ListeningDataPath;
         private static bool ErrorReadingFromFile = true;
         private static bool ErrorWritingToFile = true;
         private static DateTime LastDataUpdate;
 
-        private class SongData
+        protected class SongData
         {
             // "TotalListened": 0
             // "SongsData": {
             // ["SongName_ArtistName"]: [{"name":"SongName"},{"author":"ArtistName"},{"timelistened":"SongTotalSeconds"}]
             // }
-            public string versionNumber { get; set; } = "0.12";
+            public string versionNumber { get; set; } = "0.3";
 
             public int TotalListened { get; set; } = 0;
             public Dictionary<string, Dictionary<string, string>> SongsData { get; set; } = new Dictionary<string, Dictionary<string, string>>();
@@ -104,7 +100,7 @@ namespace VRPC.ListeningDataManager
             }
         }
 
-        private static SongData ReadDataFile()
+        protected static SongData ReadDataFile()
         {
             SongData songData = new SongData();
             try
@@ -115,7 +111,7 @@ namespace VRPC.ListeningDataManager
             }
             catch
             {
-                log.Warn("[ListeningData] Couldn't read from file. Won't update, maybe the file is corrupted?");
+                log.Warn("[ListeningData] Couldn't read from file. Maybe the file is corrupted?");
                 ErrorReadingFromFile = true;
                 return songData;
             }
@@ -199,11 +195,25 @@ namespace VRPC.ListeningDataManager
         {
             bool SavingEnabled = true;
 
+            int RPCCounter = 0;
+
+            Random random = new Random();
+            int RPCTrigger = random.Next(30, 600);
+
             while (true)
             {
                 while (!token.IsCancellationRequested)
                 {
                     Thread.Sleep(1000);
+
+                    if (RPCCounter >= RPCTrigger) {
+                        Thread RPCThread = new Thread(() => ListeningDataRPC.UpdateRPC());
+                        RPCThread.Start();
+                        RPCCounter = -ListeningDataRPC.duration;
+                        RPCTrigger = random.Next(30, 600);
+                    }
+                    else { RPCCounter++; }
+
                     if (string.IsNullOrEmpty(SongName) || string.IsNullOrEmpty(ArtistName)) { continue; }
                     if (SongPlaying && ((DateTime.UtcNow - LastDataUpdate) < TimeSpan.FromSeconds(6)))
                     {

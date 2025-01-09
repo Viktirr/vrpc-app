@@ -80,12 +80,21 @@ namespace VRPC.Configuration
                 { "Type", "bool" }
             };
 
+            public static Dictionary<string, string> ShowcaseDataToRPC { get; } = new Dictionary<string, string> {
+                { "InternalName", "ShowcaseDataToRPC" },
+                { "DisplayName", "Showcase Data To RPC" },
+                { "Description", "Periodically show the listening data stored (i.e. how much you've listened to a song) on Discord" },
+                { "Visibility", "Shown" },
+                { "Type", "bool" }  
+            };
+
             public static Dictionary<string, object> SettingsDictionary = new Dictionary<string, object> {
                 { "LoggingWriteEnabled", LoggingWriteEnabled },
                 { "DisableClearingLogs", DisableClearingLogs },
                 { "EnableDiscordRPC", EnableDiscordRPC },
                 { "EnableListeningToButton", EnableListeningToButton },
-                { "EnableListeningData", EnableListeningData }
+                { "EnableListeningData", EnableListeningData },
+                { "ShowcaseDataToRPC", ShowcaseDataToRPC }
             };
         }
 
@@ -96,6 +105,7 @@ namespace VRPC.Configuration
             public bool EnableDiscordRPC { get; set; } = true;
             public bool EnableListeningToButton { get; set; } = true;
             public bool EnableListeningData { get; set; } = true;
+            public bool ShowcaseDataToRPC { get; set; } = false;
         }
 
         private static SettingsData ReadConfigFile()
