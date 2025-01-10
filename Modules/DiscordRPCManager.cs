@@ -69,6 +69,7 @@ namespace VRPC.DiscordRPCManager
             {
                 SetDiscordActivity.UpdateActivity();
             };
+            SetDiscordActivity.UpdateActivity();
         }
 
         public void Start(CancellationToken token)
