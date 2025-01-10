@@ -191,14 +191,26 @@ namespace VRPC.ListeningDataManager
             PreviousArtistName = ArtistName;
         }
 
+        private static int RPCCounter = 0;
+        private static int RPCTrigger = new Random().Next(30, 600);
+
+        public static void UpdateListeningDataRPC()
+        {
+            if (VRPCSettings.settingsData.ShowcaseDataToRPC == false) { return; }
+
+            if (RPCCounter >= RPCTrigger)
+            {
+                Thread RPCThread = new Thread(() => ListeningDataRPC.UpdateRPC());
+                RPCThread.Start();
+                RPCCounter = -ListeningDataRPC.duration;
+                RPCTrigger = new Random().Next(30, 600);
+            }
+            else { RPCCounter++; }
+        }
+
         public static void Heartbeat(CancellationToken token, bool ShutdownRequested = false)
         {
             bool SavingEnabled = true;
-
-            int RPCCounter = 0;
-
-            Random random = new Random();
-            int RPCTrigger = random.Next(30, 600);
 
             while (true)
             {
@@ -206,13 +218,7 @@ namespace VRPC.ListeningDataManager
                 {
                     Thread.Sleep(1000);
 
-                    if (RPCCounter >= RPCTrigger) {
-                        Thread RPCThread = new Thread(() => ListeningDataRPC.UpdateRPC());
-                        RPCThread.Start();
-                        RPCCounter = -ListeningDataRPC.duration;
-                        RPCTrigger = random.Next(30, 600);
-                    }
-                    else { RPCCounter++; }
+                    UpdateListeningDataRPC();
 
                     if (string.IsNullOrEmpty(SongName) || string.IsNullOrEmpty(ArtistName)) { continue; }
                     if (SongPlaying && ((DateTime.UtcNow - LastDataUpdate) < TimeSpan.FromSeconds(6)))
