@@ -3,7 +3,7 @@ using VRPC.Logging;
 using VRPC.NativeMessasing;
 using VRPC.Configuration;
 using VRPC.ListeningDataManager;
-using DiscordRPC;
+using VRPC.Globals;
 
 class Program
 {
@@ -19,25 +19,8 @@ class Program
     static void StatusUpdate(string message)
     {
         if (message == null || message == "") { return; }
-        int newLineCount = message.Count(c => c == '\n');
-        int seekFrom = 0;
-        string currentLine;
 
-        Dictionary<int, string> messageDictionary = new Dictionary<int, string>();
-        for (int i = 0; i < (newLineCount + 1); i++)
-        {
-            int nextNewLine = message.IndexOf("\n", seekFrom);
-
-            if (nextNewLine < 0) { currentLine = message.Substring(seekFrom); }
-            else
-            {
-                currentLine = message.Substring(seekFrom, nextNewLine - seekFrom);
-            }
-
-            messageDictionary.Add(i, currentLine);
-
-            seekFrom = nextNewLine + 1;
-        }
+        Dictionary<int, string> messageDictionary = VRPCGlobalFunctions.LinesIntoDictionary(message);
 
         static bool OpenDiscordRPC()
         {
@@ -144,7 +127,7 @@ class Program
 
             log.Write($"Received {receivedMessage}");
 
-            if (messageType == "RPC:") { NativeMessaging.UpdateRPCFile(VRPCSettings.RPCInfoPath, messageContent); }
+            if (messageType == "RPC:") { NativeMessaging.UpdateRPCDataLegacy(messageContent); }
             if (messageType == "STATUS:") { StatusUpdate(messageContent); }
         }
     }
@@ -161,9 +144,6 @@ class Program
         log.Write("[Main] Reading Settings from file.");
 
         if (VRPCSettings.settingsData.DisableClearingLogs == false) { log.Clear(); }
-
-        try { Log log = new Log(); }
-        catch (Exception e) { Console.WriteLine($"Could not initialize logging. Exception {e.Data}"); }
 
         Thread nativeMessagingThread = new Thread(UseNativeMessaging);
         nativeMessagingThread.Start();

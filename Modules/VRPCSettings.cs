@@ -8,7 +8,6 @@ namespace VRPC.Configuration
     {
         private static string pathAppData = Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData);
         public static string UserAppDataPath = Path.Combine(pathAppData, "VRPCApp");
-        public static string RPCInfoPath = Path.Combine(UserAppDataPath, "RPCInfo.txt");
         public static string ListeningDataPath = Path.Combine(UserAppDataPath, "ListeningData.json");
         public static string ConfigPath = Path.Combine(UserAppDataPath, "Config.json");
         public static SettingsData settingsData = new SettingsData();

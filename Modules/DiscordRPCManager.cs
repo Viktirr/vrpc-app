@@ -1,6 +1,7 @@
 ﻿using DiscordRPC;
 using VRPC.Logging;
 using VRPC.DiscordRPCManager.Activities;
+using VRPC.Globals;
 
 namespace VRPC.DiscordRPCManager
 {
@@ -64,14 +65,10 @@ namespace VRPC.DiscordRPCManager
                 log.Error($"[DiscordRPC] Error initializing Discord RPC: {e.Message + e.StackTrace}");
             }
 
-            Thread updateActivity = new Thread(() => {
-                while (true)
-                {
-                    SetDiscordActivity.UpdateActivityFromFile();
-                    Thread.Sleep(1000);
-                }
-            });
-            updateActivity.Start();
+            VRPCGlobalEvents.RPCEvent += (sender, e) =>
+            {
+                SetDiscordActivity.UpdateActivity();
+            };
         }
 
         public void Start(CancellationToken token)

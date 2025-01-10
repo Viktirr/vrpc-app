@@ -1,6 +1,7 @@
 using VRPC.Logging;
 using VRPC.Configuration;
 using VRPC.ListeningDataManager;
+using VRPC.Globals;
 using DiscordRPC;
 
 namespace VRPC.DiscordRPCManager.Activities
@@ -144,118 +145,111 @@ namespace VRPC.DiscordRPCManager.Activities
 
         public static void UpdateRPC()
         {
-            using (StreamReader sr = new StreamReader(VRPCSettings.RPCInfoPath))
+            string? songName = VRPCGlobalData.RPCDataLegacyDictionary.GetValueOrDefault(1);
+
+            try
             {
-                sr.ReadLine();
-                string? songName = sr.ReadLine()?.Trim();
-
-                try
+                if (songName == "" || songName == "null" || songName == null)
                 {
-                    if (songName == "" || songName == "null" || songName == null)
-                    {
-                        richPresence.Details = "Main menu";
-                        richPresence.State = "Browsing";
-                        richPresence.Assets.LargeImageKey = "ytmusic-vrpc";
-                        richPresence.Assets.LargeImageText = "YouTube Music";
-                        return;
-                    }
+                    richPresence.Details = "Main menu";
+                    richPresence.State = "Browsing";
+                    richPresence.Assets.LargeImageKey = "ytmusic-vrpc";
+                    richPresence.Assets.LargeImageText = "YouTube Music";
+                    return;
                 }
-                catch { log.Write("[YouTube Music] Something went wrong upon setting Rich Presence to Browsing."); }
-
-                string? artistName = sr.ReadLine()?.Trim();
-                string? songDurationRaw = sr.ReadLine()?.Trim();
-                string? songStatus = sr.ReadLine()?.Trim();
-                string? songId = "";
-                string? smallSongBanner = "";
-                string? albumName = "";
-                string? releaseYear = "";
-                try { songId = sr.ReadLine()?.Trim(); } catch (Exception e) { log.Warn($"[Youtube Music] No song id found while attempting to read songId. Exception {e.Data}"); }
-                try { smallSongBanner = sr.ReadLine()?.Trim(); } catch (Exception e) { log.Warn($"[Youtube Music] No banner found while attempting to read banner. Exception {e.Data}"); }
-                try { albumName = sr.ReadLine()?.Trim(); } catch (Exception e) { log.Warn($"[Youtube Music] Nothing found while attempting to read the name of the album. Exception {e.Data}"); }
-                try { releaseYear = sr.ReadLine()?.Trim(); } catch (Exception e) { log.Warn($"[Youtube Music] Nothing found while attempting to read the release year of the song. Exception {e.Data}"); }
-
-                if (songName != null && songName.Length > 56) { songName = songName.Substring(0, 56); }
-                if (artistName != null && artistName.Length > 56) { artistName = artistName.Substring(0, 56); }
-                if (songDurationRaw == null) { songDurationRaw = ""; }
-
-                string[] songDuration = { };
-
-                int songInSecondsCurrent = 0;
-                int songInSeconds = 0;
-
-                try { songDuration = songDurationRaw.Split("/"); } catch (Exception e) { log.Error($"[Youtube Music] Couldn't split the song duration into two parts. Exception {e.Data}"); return; }
-
-                try
-                {
-                    for (int i = 0; i < songDuration.Length; i++)
-                    {
-                        string currentDuration = songDuration[i];
-                        string[] timeSeparator = currentDuration.Split(":");
-
-                        if (i == 0)
-                        {
-                            for (int j = timeSeparator.Length - 1; j >= 0; j--)
-                            {
-                                if (j == 1)
-                                {
-                                    songInSecondsCurrent = int.Parse((timeSeparator[j]));
-                                }
-                                if (j == 0)
-                                {
-                                    songInSecondsCurrent = songInSecondsCurrent + int.Parse((timeSeparator[j])) * 60;
-                                }
-                            }
-                        }
-
-                        if (i == 1)
-                        {
-                            for (int j = timeSeparator.Length - 1; j >= 0; j--)
-                            {
-                                if (j == 1)
-                                {
-                                    songInSeconds = int.Parse((timeSeparator[j]));
-                                }
-                                if (j == 0)
-                                {
-                                    songInSeconds = songInSeconds + int.Parse((timeSeparator[j])) * 60;
-                                }
-                            }
-                        }
-                    }
-                }
-                catch (Exception e) { log.Warn($"[Youtube Music] Couldn't get the song duration, will use a previously set value. Error: {e.Data}"); }
-
-                try
-                {
-                    if (!string.IsNullOrEmpty(songName))
-                    {
-                        richPresence.Details = songName;
-                        if (richPresence.Details != songName) { DiscordRPCData.forceUpdateDiscordRPC = true; }
-                    }
-
-                    if (!string.IsNullOrEmpty(artistName))
-                    {
-                        richPresence.State = artistName;
-                    }
-                } catch { log.Write("[YouTube Music] Something went wrong setting artist and song name to Rich Presence"); }
-
-                try
-                {
-                    if (songDuration[0] != null || songDuration[1] != null)
-                    {
-                        richPresence.Timestamps.Start = DateTime.UtcNow - TimeSpan.FromSeconds(songInSecondsCurrent);
-                        richPresence.Timestamps.End = DateTime.UtcNow + TimeSpan.FromSeconds(songInSeconds - songInSecondsCurrent);
-                    }
-                }
-                catch { log.Write("[YouTube Music] Something went wrong setting timestamps to Rich Presence"); }
-
-                bool isVideo = IsVideo(albumName, releaseYear);
-                UpdateListeningData(songName, artistName, songStatus);
-                UpdateStatus(songStatus, songInSecondsCurrent);
-                UpdateImage(songId, smallSongBanner);
-                UpdateAlbum(albumName, releaseYear, isVideo);
-                UpdateButton(songId);
             }
+            catch { log.Write("[YouTube Music] Something went wrong upon setting Rich Presence to Browsing."); }
+
+            string? artistName = VRPCGlobalData.RPCDataLegacyDictionary.GetValueOrDefault(2);
+            string? songDurationRaw = VRPCGlobalData.RPCDataLegacyDictionary.GetValueOrDefault(3);
+            string? songStatus = VRPCGlobalData.RPCDataLegacyDictionary.GetValueOrDefault(4);
+            string? songId = VRPCGlobalData.RPCDataLegacyDictionary.GetValueOrDefault(5);
+            string? smallSongBanner = VRPCGlobalData.RPCDataLegacyDictionary.GetValueOrDefault(6);
+            string? albumName = VRPCGlobalData.RPCDataLegacyDictionary.GetValueOrDefault(7);
+            string? releaseYear = VRPCGlobalData.RPCDataLegacyDictionary.GetValueOrDefault(8);
+
+            if (songName != null && songName.Length > 56) { songName = songName.Substring(0, 56); }
+            if (artistName != null && artistName.Length > 56) { artistName = artistName.Substring(0, 56); }
+            if (songDurationRaw == null) { songDurationRaw = ""; }
+
+            string[] songDuration = Array.Empty<string>();
+
+            int songInSecondsCurrent = 0;
+            int songInSeconds = 0;
+
+            try { songDuration = songDurationRaw.Split("/"); } catch (Exception e) { log.Error($"[Youtube Music] Couldn't split the song duration into two parts. Exception {e.Data}"); return; }
+
+            try
+            {
+                for (int i = 0; i < songDuration.Length; i++)
+                {
+                    string currentDuration = songDuration[i];
+                    string[] timeSeparator = currentDuration.Split(":");
+
+                    if (i == 0)
+                    {
+                        for (int j = timeSeparator.Length - 1; j >= 0; j--)
+                        {
+                            if (j == 1)
+                            {
+                                songInSecondsCurrent = int.Parse((timeSeparator[j]));
+                            }
+                            if (j == 0)
+                            {
+                                songInSecondsCurrent = songInSecondsCurrent + int.Parse((timeSeparator[j])) * 60;
+                            }
+                        }
+                    }
+
+                    if (i == 1)
+                    {
+                        for (int j = timeSeparator.Length - 1; j >= 0; j--)
+                        {
+                            if (j == 1)
+                            {
+                                songInSeconds = int.Parse((timeSeparator[j]));
+                            }
+                            if (j == 0)
+                            {
+                                songInSeconds = songInSeconds + int.Parse((timeSeparator[j])) * 60;
+                            }
+                        }
+                    }
+                }
+            }
+            catch (Exception e) { log.Warn($"[Youtube Music] Couldn't get the song duration, will use a previously set value. Error: {e.Data}"); }
+
+            try
+            {
+                if (!string.IsNullOrEmpty(songName))
+                {
+                    richPresence.Details = songName;
+                    if (richPresence.Details != songName) { DiscordRPCData.forceUpdateDiscordRPC = true; }
+                }
+
+                if (!string.IsNullOrEmpty(artistName))
+                {
+                    richPresence.State = artistName;
+                }
+            }
+            catch { log.Write("[YouTube Music] Something went wrong setting artist and song name to Rich Presence"); }
+
+            try
+            {
+                if (songDuration[0] != null || songDuration[1] != null)
+                {
+                    richPresence.Timestamps.Start = DateTime.UtcNow - TimeSpan.FromSeconds(songInSecondsCurrent);
+                    richPresence.Timestamps.End = DateTime.UtcNow + TimeSpan.FromSeconds(songInSeconds - songInSecondsCurrent);
+                }
+            }
+            catch { log.Write("[YouTube Music] Something went wrong setting timestamps to Rich Presence"); }
+
+            bool isVideo = IsVideo(albumName, releaseYear);
+            UpdateListeningData(songName, artistName, songStatus);
+            UpdateStatus(songStatus, songInSecondsCurrent);
+            UpdateImage(songId, smallSongBanner);
+            UpdateAlbum(albumName, releaseYear, isVideo);
+            UpdateButton(songId);
         }
     }
 }

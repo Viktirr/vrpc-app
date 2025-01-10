@@ -2,6 +2,7 @@ using System.Text;
 using System.Text.Json;
 using VRPC.Logging;
 using VRPC.ListeningDataManager;
+using VRPC.Globals;
 
 namespace VRPC.NativeMessasing
 {
@@ -32,17 +33,13 @@ namespace VRPC.NativeMessasing
         }
         static Log log = new Log();
 
-        public static void UpdateRPCFile(string filePath, string content)
+        public static void UpdateRPCDataLegacy(string content)
         {
-            try
-            {
-                using (FileStream fs = File.Create(filePath))
-                {
-                    byte[] contentByte = new UTF8Encoding(true).GetBytes(content);
-                    fs.Write(contentByte, 0, contentByte.Length);
-                }
-            }
-            catch (Exception e) { SendMessage(EncodeMessage("Something went wrong updating the file RPCInfo.txt " + e.Data)); log.Write($"Something went wrong updating the file RPCInfo.txt, {e.Data}"); }
+            // Legacy stored because this is how it was first built, later needs to get changed to json. Once the transition happens, I'm deleting this.
+            VRPCGlobalData.RPCDataLegacyString = content;
+            VRPCGlobalData.RPCDataLegacyDictionary = VRPCGlobalFunctions.LinesIntoDictionary(content);
+
+            VRPCGlobalEvents.SendRichPresenceEvent();
         }
 
         public static string GetMessage()

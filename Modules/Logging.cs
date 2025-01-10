@@ -1,4 +1,3 @@
-using System.IO;
 using VRPC.Configuration;
 using VRPC.NativeMessasing;
 

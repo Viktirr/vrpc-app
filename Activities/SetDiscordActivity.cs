@@ -1,36 +1,18 @@
-using VRPC.Logging;
-using VRPC.Configuration;
+using VRPC.Globals;
 
-namespace VRPC.DiscordRPCManager.Activities {
+namespace VRPC.DiscordRPCManager.Activities
+{
 
-    class SetDiscordActivity : DiscordRPCManager {
-        private static Log log = new Log();
-
-        public static void UpdateActivityFromFile()
+    class SetDiscordActivity : DiscordRPCManager
+    {
+        public static void UpdateActivity()
         {
-            try
-            {
-                if (File.Exists(VRPCSettings.RPCInfoPath))
-                {
-                    string? serviceName;
-                    using (StreamReader sr = new StreamReader(VRPCSettings.RPCInfoPath))
-                    {
-                        serviceName = sr.ReadLine()?.Trim();
-                    }
+            string? serviceName;
+            serviceName = VRPCGlobalData.RPCDataLegacyDictionary.GetValueOrDefault(0);
 
-                    if (serviceName == "YouTube Music")
-                    {
-                        YouTubeMusic.UpdateRPC();
-                    }
-                }
-                else
-                {
-                    log.Error($"[DiscordRPC - SetDiscordActivity] File not found: {VRPCSettings.RPCInfoPath}");
-                }
-            }
-            catch (Exception e)
+            if (serviceName == "YouTube Music")
             {
-                log.Error($"[DiscordRPC - SetDiscordActivity] Error reading activity file: {e.Data + e.StackTrace}");
+                YouTubeMusic.UpdateRPC();
             }
         }
     }
