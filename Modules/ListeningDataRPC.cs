@@ -22,7 +22,8 @@ namespace VRPC.ListeningDataManager
             Log log = new Log();
             SongData songData = ReadDataFile();
 
-            string CurrentLargeImageText = DiscordRPCData.richPresenceData.Assets.LargeImageText;
+            string CurrentLargeImageText = "";
+            try { CurrentLargeImageText = DiscordRPCData.richPresenceData.Assets.LargeImageText; } catch { log.Info("[ListeningDataRPC] No album text found, not changing anything."); return; }
 
             string songName = DiscordRPCData.richPresenceData.Details;
             string artistName = DiscordRPCData.richPresenceData.State;
@@ -42,7 +43,7 @@ namespace VRPC.ListeningDataManager
                     if (songData.SongsData[key].ContainsKey("timelistened"))
                     {
                         DiscordRPCData.richPresenceData.Assets.LargeImageText = $"Listened to {songName} for {float.Parse(songData.SongsData[key]["timelistened"]) / 3600:0.0} hours in total";
-                        log.Write("Updated large image text to show time listened");
+                        log.Write("[ListeningDataRPC] Updated large image text to show time listened");
                     }
                     Thread.Sleep(1000);
                 }
