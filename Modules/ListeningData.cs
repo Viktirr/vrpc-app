@@ -27,7 +27,7 @@ namespace VRPC.ListeningDataManager
             // "SongsData": {
             // ["SongName_ArtistName"]: [{"name":"SongName"},{"author":"ArtistName"},{"timelistened":"SongTotalSeconds"}]
             // }
-            public string versionNumber { get; set; } = "0.3";
+            public string versionNumber { get; set; } = "0.5";
 
             public int TotalListened { get; set; } = 0;
             public Dictionary<string, Dictionary<string, string>> SongsData { get; set; } = new Dictionary<string, Dictionary<string, string>>();

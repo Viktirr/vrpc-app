@@ -2,7 +2,6 @@ using VRPC.Globals;
 
 namespace VRPC.DiscordRPCManager.Activities
 {
-
     class SetDiscordActivity : DiscordRPCManager
     {
         public static void UpdateActivity()
@@ -10,9 +9,16 @@ namespace VRPC.DiscordRPCManager.Activities
             string? serviceName;
             serviceName = VRPCGlobalData.RPCDataLegacyDictionary.GetValueOrDefault(0);
 
-            if (serviceName == "YouTube Music")
+            string? currentServiceName;
+            currentServiceName = DiscordRPCData.currentService;
+
+            if (serviceName == "YouTube Music" && currentServiceName == "YouTube Music")
             {
                 YouTubeMusic.UpdateRPC();
+            }
+            else if (serviceName == "Soundcloud" && currentServiceName == "Soundcloud")
+            {
+                Soundcloud.UpdateRPC();
             }
         }
     }

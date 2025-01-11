@@ -22,7 +22,13 @@ namespace VRPC.Globals
             return dictionary;
         }
 
+        public static bool IsRPCStringNull(string? value)
+        {
+            if (value == null || value == "" || value == "null") { return true; }
+            else { return false; }
+        }
     }
+
     public static class VRPCGlobalEvents
     {
         public static event EventHandler? RPCEvent;

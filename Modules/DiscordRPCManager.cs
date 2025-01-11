@@ -23,6 +23,7 @@ namespace VRPC.DiscordRPCManager
         private Dictionary<string, string> serviceList = new Dictionary<string, string>
         {
             ["YouTube Music"] = "1318269449744154664",
+            ["Soundcloud"] = "1327613957975969823",
             ["Default"] = "1257441643691380828"
         };
 

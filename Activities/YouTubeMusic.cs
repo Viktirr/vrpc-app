@@ -87,11 +87,66 @@ namespace VRPC.DiscordRPCManager.Activities
             catch { }
         }
 
-        private static string[] UpdateTimestamps(string? songDurationRaw)
+        private static (int songInSecondsCurrent, int songInSeconds, string[] songDuration) UpdateTimestamps(string? songDurationRaw)
         {
-            // TBD: Switch Timestamps to this function
             string[] songDuration = Array.Empty<string>();
-            return songDuration;
+
+            int songInSecondsCurrent = 0;
+            int songInSeconds = 0;
+
+            try 
+            { 
+                if (songDurationRaw != null)
+                {
+                    songDuration = songDurationRaw.Split("/"); 
+                }
+            } 
+            catch (Exception e) 
+            { 
+                log.Error($"[Youtube Music] Couldn't split the song duration into two parts. Exception {e.Data}"); 
+            }
+
+            try
+            {
+                for (int i = 0; i < songDuration.Length; i++)
+                {
+                    string currentDuration = songDuration[i];
+                    string[] timeSeparator = currentDuration.Split(":");
+
+                    if (i == 0)
+                    {
+                        for (int j = timeSeparator.Length - 1; j >= 0; j--)
+                        {
+                            if (j == 1)
+                            {
+                                songInSecondsCurrent = int.Parse(timeSeparator[j]);
+                            }
+                            if (j == 0)
+                            {
+                                songInSecondsCurrent = songInSecondsCurrent + int.Parse(timeSeparator[j]) * 60;
+                            }
+                        }
+                    }
+
+                    if (i == 1)
+                    {
+                        for (int j = timeSeparator.Length - 1; j >= 0; j--)
+                        {
+                            if (j == 1)
+                            {
+                                songInSeconds = int.Parse(timeSeparator[j]);
+                            }
+                            if (j == 0)
+                            {
+                                songInSeconds = songInSeconds + int.Parse(timeSeparator[j]) * 60;
+                            }
+                        }
+                    }
+                }
+            }
+            catch (Exception e) { log.Warn($"[Youtube Music] Couldn't get the song duration, will use a previously set value. Error: {e.Data}"); }
+
+            return (songInSecondsCurrent, songInSeconds, songDuration);
         }
 
 
@@ -172,52 +227,11 @@ namespace VRPC.DiscordRPCManager.Activities
             if (artistName != null && artistName.Length > 56) { artistName = artistName.Substring(0, 56); }
             if (songDurationRaw == null) { songDurationRaw = ""; }
 
-            string[] songDuration = Array.Empty<string>();
+            int songInSecondsCurrent;
+            int songInSeconds;
+            string[] songDuration;
 
-            int songInSecondsCurrent = 0;
-            int songInSeconds = 0;
-
-            try { songDuration = songDurationRaw.Split("/"); } catch (Exception e) { log.Error($"[Youtube Music] Couldn't split the song duration into two parts. Exception {e.Data}"); return; }
-
-            try
-            {
-                for (int i = 0; i < songDuration.Length; i++)
-                {
-                    string currentDuration = songDuration[i];
-                    string[] timeSeparator = currentDuration.Split(":");
-
-                    if (i == 0)
-                    {
-                        for (int j = timeSeparator.Length - 1; j >= 0; j--)
-                        {
-                            if (j == 1)
-                            {
-                                songInSecondsCurrent = int.Parse((timeSeparator[j]));
-                            }
-                            if (j == 0)
-                            {
-                                songInSecondsCurrent = songInSecondsCurrent + int.Parse((timeSeparator[j])) * 60;
-                            }
-                        }
-                    }
-
-                    if (i == 1)
-                    {
-                        for (int j = timeSeparator.Length - 1; j >= 0; j--)
-                        {
-                            if (j == 1)
-                            {
-                                songInSeconds = int.Parse((timeSeparator[j]));
-                            }
-                            if (j == 0)
-                            {
-                                songInSeconds = songInSeconds + int.Parse((timeSeparator[j])) * 60;
-                            }
-                        }
-                    }
-                }
-            }
-            catch (Exception e) { log.Warn($"[Youtube Music] Couldn't get the song duration, will use a previously set value. Error: {e.Data}"); }
+            (songInSecondsCurrent, songInSeconds, songDuration) = UpdateTimestamps(songDurationRaw);
 
             try
             {
