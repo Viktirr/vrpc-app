@@ -58,6 +58,7 @@ class Program
 
         if (messageDictionary[1].Contains("Closed"))
         {
+            if (currentService != DiscordRPCData.currentService) { return; }
             try { discordCancellationTokenSource.Cancel(); return; } catch (Exception e) { log.Warn($"[Main] Couldn't cancel Cancellation Token for Discord RPC, probably already cancelled? Exception {e.Data}"); return; }
         }
     }
