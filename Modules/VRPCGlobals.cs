@@ -1,3 +1,5 @@
+using System.Text.RegularExpressions;
+
 namespace VRPC.Globals
 {
     public static class VRPCGlobalData
@@ -26,6 +28,28 @@ namespace VRPC.Globals
         {
             if (value == null || value == "" || value == "null") { return true; }
             else { return false; }
+        }
+
+        public static string RemoveArtistFromTitle(string songName, string artistName)
+        {
+            string value = songName;
+            string escapedArtist = Regex.Escape(artistName);
+
+            string[] patterns = new string[]
+            {
+                $@"^{escapedArtist}\s*[-|:]\s*",  // "Artist - Song Name" or "Artist : Song Name"
+                $@"\s*[-|:]\s*{escapedArtist}$", // "Song Name - Artist" or "Song Name | Artist"
+                $@"\|\s*{escapedArtist}$",       // "Song Name | Artist"
+                $@"^{escapedArtist}\s*\|\s*",    // "Artist | Song Name"
+            };
+
+            foreach (string pattern in patterns)
+            {
+                // Use regex to replace the matched pattern with an empty string
+                value = Regex.Replace(value, pattern, "", RegexOptions.IgnoreCase).Trim();
+            }
+
+            return value;
         }
     }
 

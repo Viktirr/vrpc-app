@@ -200,7 +200,7 @@ namespace VRPC.DiscordRPCManager.Activities
 
         public static void UpdateRPC()
         {
-            string? songName = VRPCGlobalData.RPCDataLegacyDictionary.GetValueOrDefault(1);
+            string songName = VRPCGlobalData.RPCDataLegacyDictionary.GetValueOrDefault(1, "");
 
             try
             {
@@ -215,7 +215,7 @@ namespace VRPC.DiscordRPCManager.Activities
             }
             catch { log.Write("[YouTube Music] Something went wrong upon setting Rich Presence to Browsing."); }
 
-            string? artistName = VRPCGlobalData.RPCDataLegacyDictionary.GetValueOrDefault(2);
+            string artistName = VRPCGlobalData.RPCDataLegacyDictionary.GetValueOrDefault(2, "");
             string? songDurationRaw = VRPCGlobalData.RPCDataLegacyDictionary.GetValueOrDefault(3);
             string? songStatus = VRPCGlobalData.RPCDataLegacyDictionary.GetValueOrDefault(4);
             string? songId = VRPCGlobalData.RPCDataLegacyDictionary.GetValueOrDefault(5);
@@ -233,9 +233,18 @@ namespace VRPC.DiscordRPCManager.Activities
 
             (songInSecondsCurrent, songInSeconds, songDuration) = UpdateTimestamps(songDurationRaw);
 
+            string cleanSongName = "";
             try
             {
-                if (!string.IsNullOrEmpty(songName))
+                if (!string.IsNullOrEmpty(songName) && !string.IsNullOrEmpty(artistName)) {
+                    cleanSongName = VRPCGlobalFunctions.RemoveArtistFromTitle(songName, artistName);
+                }
+                
+                if (!string.IsNullOrEmpty(cleanSongName))
+                {
+                    richPresence.Details = cleanSongName;
+                    if (richPresence.Details != cleanSongName) { DiscordRPCData.forceUpdateDiscordRPC = true; }
+                } else if (!string.IsNullOrEmpty(songName))
                 {
                     richPresence.Details = songName;
                     if (richPresence.Details != songName) { DiscordRPCData.forceUpdateDiscordRPC = true; }

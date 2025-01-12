@@ -71,8 +71,8 @@ namespace VRPC.DiscordRPCManager.Activities
         {
             Log log = new Log();
 
-            string? songName = VRPCGlobalData.RPCDataLegacyDictionary.GetValueOrDefault(1);
-            string? artistName = VRPCGlobalData.RPCDataLegacyDictionary.GetValueOrDefault(2);
+            string songName = VRPCGlobalData.RPCDataLegacyDictionary.GetValueOrDefault(1, "");
+            string artistName = VRPCGlobalData.RPCDataLegacyDictionary.GetValueOrDefault(2, "");
             int currentTime = int.Parse(VRPCGlobalData.RPCDataLegacyDictionary.GetValueOrDefault(3, "0"));
             int totalTime = int.Parse(VRPCGlobalData.RPCDataLegacyDictionary.GetValueOrDefault(4, "0"));
             string? songStatus = VRPCGlobalData.RPCDataLegacyDictionary.GetValueOrDefault(5);
@@ -87,8 +87,14 @@ namespace VRPC.DiscordRPCManager.Activities
                 richPresence.Assets.LargeImageText = "Soundcloud";
                 return;
             }
+            
+            string cleanSongName = VRPCGlobalFunctions.RemoveArtistFromTitle(songName, artistName);
 
-            if (!string.IsNullOrEmpty(songName))
+            if (!string.IsNullOrEmpty(cleanSongName))
+            {
+                richPresence.Details = cleanSongName;
+                if (richPresence.Details != cleanSongName) { DiscordRPCData.forceUpdateDiscordRPC = true; }
+            } else if (!string.IsNullOrEmpty(songName))
             {
                 richPresence.Details = songName;
                 if (richPresence.Details != songName) { DiscordRPCData.forceUpdateDiscordRPC = true; }

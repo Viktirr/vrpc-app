@@ -53,7 +53,7 @@ class Program
         if (messageDictionary[1].Contains("Opened"))
         {
             bool OpenDiscordRPCSuccess = OpenDiscordRPC();
-            if (!OpenDiscordRPCSuccess) { Thread.Sleep(1000); OpenDiscordRPC(); return; }
+            if (!OpenDiscordRPCSuccess) { Thread.Sleep(2000); OpenDiscordRPC(); return; }
         }
 
         if (messageDictionary[1].Contains("Closed"))
