@@ -1,3 +1,4 @@
+using VRPC.Configuration;
 using VRPC.Globals;
 using VRPC.ListeningDataManager;
 using VRPC.Logging;
@@ -29,20 +30,22 @@ namespace VRPC.DiscordRPCManager.Activities
 
         private static void UpdateStatus(string? songStatus, int? currentTime)
         {
+            string watermarkString = "";
+            if (VRPCSettings.settingsData.ShowAppWatermark == true) { watermarkString = " | vrpc"; } else { watermarkString = ""; }
             if (songStatus != "Playing" && songStatus != "Paused")
             {
                 richPresence.Assets.SmallImageKey = "";
-                richPresence.Assets.SmallImageText = "";
+                richPresence.Assets.SmallImageText = "" + watermarkString;
             }
             if (songStatus == "Playing")
             {
                 richPresence.Assets.SmallImageKey = "playing";
-                richPresence.Assets.SmallImageText = "Playing";
+                richPresence.Assets.SmallImageText = "Playing" + watermarkString;
             }
             else if (songStatus == "Paused")
             {
                 richPresence.Assets.SmallImageKey = "paused";
-                richPresence.Assets.SmallImageText = "Paused";
+                richPresence.Assets.SmallImageText = "Paused" + watermarkString;
 
                 if (currentTime.HasValue)
                 {

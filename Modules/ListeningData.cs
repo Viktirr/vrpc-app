@@ -3,6 +3,7 @@ using System.Text.RegularExpressions;
 using VRPC.Configuration;
 using VRPC.Logging;
 using System.Text;
+using VRPC.Globals;
 
 namespace VRPC.ListeningDataManager
 {
@@ -27,7 +28,7 @@ namespace VRPC.ListeningDataManager
             // "SongsData": {
             // ["SongName_ArtistName"]: [{"name":"SongName"},{"author":"ArtistName"},{"timelistened":"SongTotalSeconds"}]
             // }
-            public string versionNumber { get; set; } = "0.5";
+            public string versionNumber { get; set; } = VRPCGlobalData.appVersion;
 
             public int TotalListened { get; set; } = 0;
             public Dictionary<string, Dictionary<string, string>> SongsData { get; set; } = new Dictionary<string, Dictionary<string, string>>();

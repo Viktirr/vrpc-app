@@ -58,7 +58,7 @@ namespace VRPC.Configuration
             public static Dictionary<string, string> EnableDiscordRPC { get; } = new Dictionary<string, string> {
                 { "InternalName", "EnableDiscordRPC" },
                 { "DisplayName", "Enable Discord RPC" },
-                { "Description", "Show 'Listening to' status on Discord" },
+                { "Description", "Show 'Listening to' status on your Discord profile" },
                 { "Visibility", "Shown" },
                 { "Type", "bool" }
             };
@@ -66,7 +66,7 @@ namespace VRPC.Configuration
             public static Dictionary<string, string> EnableListeningData { get; } = new Dictionary<string, string> {
                 { "InternalName", "EnableListeningData" },
                 { "DisplayName", "Enable Listening Data" },
-                { "Description", "Save the time you listened to music locally" },
+                { "Description", "Saves the time you listened to music locally, see About section for more information" },
                 { "Visibility", "Shown" },
                 { "Type", "bool" }
             };
@@ -74,7 +74,7 @@ namespace VRPC.Configuration
             public static Dictionary<string, string> EnableListeningToButton { get; } = new Dictionary<string, string> {
                 { "InternalName", "EnableListeningToButton" },
                 { "DisplayName", "Enable Listening To Button" },
-                { "Description", "Show 'Listen on ...' on Discord (Not visible to you)" },
+                { "Description", "Show 'Listen on ...' button on your Discord profile (Not visible to you)" },
                 { "Visibility", "Shown" },
                 { "Type", "bool" }
             };
@@ -87,13 +87,22 @@ namespace VRPC.Configuration
                 { "Type", "bool" }  
             };
 
+            public static Dictionary<string, string> ShowAppWatermark { get; } = new Dictionary<string, string> {
+                { "InternalName", "ShowAppWatermark" },
+                { "DisplayName", "Show Watermark" },
+                { "Description", "Show 'vrpc' when hovering over playing status on your Discord profile" },
+                { "Visibility", "Shown" },
+                { "Type", "bool" }  
+            };
+
             public static Dictionary<string, object> SettingsDictionary = new Dictionary<string, object> {
                 { "LoggingWriteEnabled", LoggingWriteEnabled },
                 { "DisableClearingLogs", DisableClearingLogs },
                 { "EnableDiscordRPC", EnableDiscordRPC },
                 { "EnableListeningToButton", EnableListeningToButton },
                 { "EnableListeningData", EnableListeningData },
-                { "ShowcaseDataToRPC", ShowcaseDataToRPC }
+                { "ShowcaseDataToRPC", ShowcaseDataToRPC },
+                { "ShowAppWatermark", ShowAppWatermark }
             };
         }
 
@@ -105,6 +114,7 @@ namespace VRPC.Configuration
             public bool EnableListeningToButton { get; set; } = true;
             public bool EnableListeningData { get; set; } = true;
             public bool ShowcaseDataToRPC { get; set; } = false;
+            public bool ShowAppWatermark { get; set; } = true;
         }
 
         private static SettingsData ReadConfigFile()

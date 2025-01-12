@@ -64,22 +64,24 @@ namespace VRPC.DiscordRPCManager.Activities
         }
         private static void UpdateStatus(string? songStatus, int songInSecondsCurrent)
         {
+            string watermarkString = "";
+            if (VRPCSettings.settingsData.ShowAppWatermark == true) { watermarkString = " | vrpc"; } else { watermarkString = ""; }
             try
             {
                 if (songStatus != "Playing" && songStatus != "Paused")
                 {
                     richPresence.Assets.SmallImageKey = "";
-                    richPresence.Assets.SmallImageText = "";
+                    richPresence.Assets.SmallImageText = "" + watermarkString;
                 }
                 if (songStatus == "Playing")
                 {
                     richPresence.Assets.SmallImageKey = "playing";
-                    richPresence.Assets.SmallImageText = "Playing";
+                    richPresence.Assets.SmallImageText = "Playing" + watermarkString;
                 }
                 else if (songStatus == "Paused")
                 {
                     richPresence.Assets.SmallImageKey = "paused";
-                    richPresence.Assets.SmallImageText = "Paused";
+                    richPresence.Assets.SmallImageText = "Paused" + watermarkString;
                     richPresence.Timestamps.Start = DateTime.UtcNow - TimeSpan.FromSeconds(songInSecondsCurrent);
                     richPresence.Timestamps.End = DateTime.UtcNow;
                 }
@@ -239,7 +241,7 @@ namespace VRPC.DiscordRPCManager.Activities
                 if (!string.IsNullOrEmpty(songName) && !string.IsNullOrEmpty(artistName)) {
                     cleanSongName = VRPCGlobalFunctions.RemoveArtistFromTitle(songName, artistName);
                 }
-                
+
                 if (!string.IsNullOrEmpty(cleanSongName))
                 {
                     richPresence.Details = cleanSongName;
