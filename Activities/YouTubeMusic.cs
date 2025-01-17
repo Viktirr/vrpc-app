@@ -275,6 +275,8 @@ namespace VRPC.DiscordRPCManager.Activities
             UpdateImage(songId, smallSongBanner);
             UpdateAlbum(albumName, releaseYear, isVideo);
             UpdateButton(songId);
+
+            if (isVideo == true) { VRPCGlobalData.MiscellaneousSongData["isvideo"] = "true"; }
         }
     }
 }

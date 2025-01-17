@@ -7,7 +7,10 @@ namespace VRPC.Globals
         public static Dictionary<string, string> RPCData = new Dictionary<string, string>();
         public static Dictionary<int, string> RPCDataLegacyDictionary = new Dictionary<int, string>();
         public static string? RPCDataLegacyString;
+
         public static string appVersion = "0.51";
+
+        public static Dictionary<string, string> MiscellaneousSongData = new Dictionary<string, string>();
     }
 
     public static class VRPCGlobalFunctions
@@ -46,11 +49,19 @@ namespace VRPC.Globals
 
             foreach (string pattern in patterns)
             {
-                // Use regex to replace the matched pattern with an empty string
                 value = Regex.Replace(value, pattern, "", RegexOptions.IgnoreCase).Trim();
             }
 
             return value;
+        }
+
+        private static float PercentageMatchingString(string string1, string string2)
+        {
+            // This function is not complete
+            // Should check how well 2 strings overlap, initially supposed to be used in identifying various versions of a song (i.e. YouTube's video/song switcher) in ListeningData.
+            float percentage = 0;
+
+            return percentage;
         }
     }
 
