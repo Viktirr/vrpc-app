@@ -67,6 +67,7 @@ namespace VRPC.DiscordRPCManager.Activities
                 {
                     new DiscordRPC.Button() { Label = "Listen on Soundcloud", Url = songUrl }
                 };
+                if (songUrl != null) { VRPCGlobalData.MiscellaneousSongData["songurl"] = songUrl; }
             }
         }
 
@@ -96,11 +97,11 @@ namespace VRPC.DiscordRPCManager.Activities
             if (!string.IsNullOrEmpty(cleanSongName))
             {
                 richPresence.Details = cleanSongName;
-                if (richPresence.Details != cleanSongName) { DiscordRPCData.forceUpdateDiscordRPC = true; }
+                if (richPresence.Details != cleanSongName) { VRPCGlobalData.MiscellaneousSongData.Clear(); DiscordRPCData.forceUpdateDiscordRPC = true; }
             } else if (!string.IsNullOrEmpty(songName))
             {
                 richPresence.Details = songName;
-                if (richPresence.Details != songName) { DiscordRPCData.forceUpdateDiscordRPC = true; }
+                if (richPresence.Details != songName) { VRPCGlobalData.MiscellaneousSongData.Clear(); DiscordRPCData.forceUpdateDiscordRPC = true; }
             }
 
             if (!string.IsNullOrEmpty(artistName))
@@ -115,6 +116,8 @@ namespace VRPC.DiscordRPCManager.Activities
             UpdateStatus(songStatus, currentTime);
             UpdateImage(smallSongBanner);
             UpdateButton(songUrl);
+
+            VRPCGlobalData.MiscellaneousSongData["platform"] = "Soundcloud";
         }
     }
 }

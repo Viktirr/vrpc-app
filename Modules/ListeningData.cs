@@ -33,7 +33,7 @@ namespace VRPC.ListeningDataManager
             public int TotalListened { get; set; } = 0;
             public Dictionary<string, Dictionary<string, string>> SongsData { get; set; } = new Dictionary<string, Dictionary<string, string>>();
 
-            public void AddSong(string songName, string artistName, int songTotalSeconds, string? platform = null)
+            public void AddSong(string songName, string artistName, int songTotalSeconds)
             {
                 if (string.IsNullOrEmpty(songName)) { return; }
                 string pattern = @"[^a-zA-Z.,!?']";
@@ -51,6 +51,9 @@ namespace VRPC.ListeningDataManager
 
                 string songURL = "Unknown";
                 if (VRPCGlobalData.MiscellaneousSongData.ContainsKey("songurl")) { songURL = VRPCGlobalData.MiscellaneousSongData["songurl"]; }
+
+                string platform = "Unknown";
+                if (VRPCGlobalData.MiscellaneousSongData.ContainsKey("platform")) { platform = VRPCGlobalData.MiscellaneousSongData["platform"]; }
 
                 if (SongsData.ContainsKey(key))
                 {
@@ -88,9 +91,11 @@ namespace VRPC.ListeningDataManager
                     if (!SongsData[key].ContainsKey("daylastplayedtimelistened")) { SongsData[key]["daylastplayedtimelistened"] = songTotalSeconds.ToString(); }
                     if (!SongsData[key].ContainsKey("daymostplayed")) { SongsData[key]["daymostplayed"] = (currentTime / 86400).ToString(); }
                     if (!SongsData[key].ContainsKey("daymostplayedtimelistened")) { SongsData[key]["daymostplayedtimelistened"] = songTotalSeconds.ToString(); }
-                    if (!SongsData[key].ContainsKey("lastplatformlistenedon")) { SongsData[key]["lastplatformlistenedon"] = platform ?? "Unknown"; }
+                    SongsData[key]["lastplatformlistenedon"] = platform;
                     if (!SongsData[key].ContainsKey("isvideo")) { SongsData[key]["isvideo"] = isVideo; }
                     if (!SongsData[key].ContainsKey("songurl")) { SongsData[key]["songurl"] = songURL; }
+                    
+                    if (SongsData[key].ContainsKey("songurl")) { if(SongsData[key]["songurl"].Contains("Unknown")) { SongsData[key]["songurl"] = songURL; }}
 
                     SongsData[key]["lastplayed"] = currentTime.ToString();
                 }
@@ -206,7 +211,9 @@ namespace VRPC.ListeningDataManager
         }
 
         private static int RPCCounter = 0;
-        private static int RPCTrigger = new Random().Next(30, 600);
+        private static int RPCDelayEarliest = 20;
+        private static int RPCDelayLatest = 450;
+        private static int RPCTrigger = new Random().Next(RPCDelayEarliest, RPCDelayLatest);
 
         public static void UpdateListeningDataRPC()
         {
@@ -217,7 +224,7 @@ namespace VRPC.ListeningDataManager
                 Thread RPCThread = new Thread(() => ListeningDataRPC.UpdateRPC());
                 RPCThread.Start();
                 RPCCounter = -ListeningDataRPC.duration;
-                RPCTrigger = new Random().Next(30, 600);
+                RPCTrigger = new Random().Next(RPCDelayEarliest, RPCDelayLatest);
             }
             else { RPCCounter++; }
         }

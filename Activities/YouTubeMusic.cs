@@ -280,6 +280,7 @@ namespace VRPC.DiscordRPCManager.Activities
             UpdateAlbum(albumName, releaseYear, isVideo);
             UpdateButton(songId);
 
+            VRPCGlobalData.MiscellaneousSongData["platform"] = "YouTube Music";
             if (isVideo == true) { VRPCGlobalData.MiscellaneousSongData["isvideo"] = "true"; }
         }
     }

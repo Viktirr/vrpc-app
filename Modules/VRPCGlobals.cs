@@ -59,10 +59,10 @@ namespace VRPC.Globals
         {
             // Should check how well 2 strings overlap, initially supposed to be used in identifying various versions of a song (i.e. YouTube's video/song switcher) in ListeningData.
 
-            // Compares 2 words from string 2 against the current selected word in string 1
+            // Compares 2 words ahead from string2 against the current selected word in string1
             int amountOfWordsToCompare = 2;
 
-            float percentage = 0;
+            float percentage;
             Dictionary<int, float> string1PercentagesMatching = new Dictionary<int, float>();
 
             string string1_lower = string1.ToLower();
