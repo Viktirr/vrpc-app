@@ -57,9 +57,87 @@ namespace VRPC.Globals
 
         private static float PercentageMatchingString(string string1, string string2)
         {
-            // This function is not complete
             // Should check how well 2 strings overlap, initially supposed to be used in identifying various versions of a song (i.e. YouTube's video/song switcher) in ListeningData.
+
+            // Compares 2 words from string 2 against the current selected word in string 1
+            int amountOfWordsToCompare = 2;
+
             float percentage = 0;
+            Dictionary<int, float> string1PercentagesMatching = new Dictionary<int, float>();
+
+            string string1_lower = string1.ToLower();
+            string string2_lower = string2.ToLower();
+
+            string[] string1_words = string1_lower.Split(" ");
+            string[] string2_words = string2_lower.Split(" ");
+
+            List<int> string1_charfoundchars_list;
+            List<int> string2_charusedchars_list = new List<int>();
+
+            for (int string1_currentword = 0; string1_currentword < string1_words.Length; string1_currentword++)
+            {
+                string1_charfoundchars_list = new List<int>();
+
+                for (int string2_currentword = 0; string2_currentword < string2_words.Length; string2_currentword++)
+                {
+                    for (int string1_currentchar = 0; string1_currentchar < string1_words[string1_currentword].Length; string1_currentchar++)
+                    {
+                        for (int string2_currentchar = 0; string2_currentchar < string2_words[string2_currentword].Length; string2_currentchar++)
+                        {
+                            if (string2_words[string2_currentword][string2_currentchar] == string1_words[string1_currentword][string1_currentchar])
+                            {
+                                // Creates value
+                                if (!string1PercentagesMatching.ContainsKey(string1_currentword))
+                                {
+                                    string1PercentagesMatching.Add(string1_currentword, 0f);
+                                }
+
+                                // Checks duplicates
+                                if (string1_charfoundchars_list.Contains(string1_currentchar)) { continue; }
+
+                                int currentCharTotalCheck = 0;
+                                if (string2_currentword == 0) { currentCharTotalCheck = string2_currentchar; }
+                                for (int string2_currentwordloop = string2_currentword - 1; string2_currentwordloop >= 0; string2_currentwordloop--)
+                                {
+                                    currentCharTotalCheck += string2_words[string2_currentwordloop].Length + string2_currentchar;
+                                }
+
+                                if (string2_charusedchars_list.Contains(currentCharTotalCheck)) { continue; }
+
+                                // Selects 2 words for comparing
+                                if (!(string2_currentword >= string1_currentword && string2_currentword <= string1_currentword + (amountOfWordsToCompare - 1))) { continue; }
+
+                                // If passed checks above, this is a good character
+                                // Console.WriteLine($"{string1_currentchar}({string1_words[string1_currentword][string1_currentchar]}) - {string2_currentchar}({string2_words[string2_currentword][string2_currentchar]})");
+
+                                string1_charfoundchars_list.Add(string1_currentchar);
+
+                                // Adds string2 used characters to a list so we don't repeat them
+                                int currentCharTotal = 0;
+
+                                if (string2_currentword == 0) { currentCharTotal = string2_currentchar; }
+                                for (int string2_currentwordloop = string2_currentword - 1; string2_currentwordloop >= 0; string2_currentwordloop--)
+                                {
+                                    currentCharTotal += string2_words[string2_currentwordloop].Length + string2_currentchar;
+                                }
+                                string2_charusedchars_list.Add(currentCharTotal);
+
+                                string1PercentagesMatching[string1_currentword] += 1f / string1_words[string1_currentword].Length;
+                            }
+                        }
+                    }
+                }
+            }
+
+            int counterPercentages = 0;
+            float totalPercentages = 0f;
+            foreach (float i in string1PercentagesMatching.Values)
+            {
+                counterPercentages++;
+                totalPercentages += i;
+            }
+
+            percentage = totalPercentages / counterPercentages;
 
             return percentage;
         }

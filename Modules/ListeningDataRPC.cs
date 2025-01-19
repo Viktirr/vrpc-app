@@ -15,8 +15,12 @@ namespace VRPC.ListeningDataManager
             string artistNameClean = Regex.Replace(artistName, pattern, "");
 
             string key = $"{songNameClean}_{artistNameClean}";
+
+            if (key == "_") { key = $"{songName}_{artistName}"; }
+            
             return key;
         }
+
         public static void UpdateRPC()
         {
             Log log = new Log();
