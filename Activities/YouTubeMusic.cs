@@ -96,16 +96,16 @@ namespace VRPC.DiscordRPCManager.Activities
             int songInSecondsCurrent = 0;
             int songInSeconds = 0;
 
-            try 
-            { 
+            try
+            {
                 if (songDurationRaw != null)
                 {
-                    songDuration = songDurationRaw.Split("/"); 
+                    songDuration = songDurationRaw.Split("/");
                 }
-            } 
-            catch (Exception e) 
-            { 
-                log.Error($"[Youtube Music] Couldn't split the song duration into two parts. Exception {e.Data}"); 
+            }
+            catch (Exception e)
+            {
+                log.Error($"[Youtube Music] Couldn't split the song duration into two parts. Exception {e.Data}");
             }
 
             try
@@ -188,12 +188,14 @@ namespace VRPC.DiscordRPCManager.Activities
                 }
                 else
                 {
+                    string songURL = $"https://music.youtube.com/watch?v={songId}";
+                    VRPCGlobalData.MiscellaneousSongData["songurl"] = songURL;
                     richPresence.Buttons = new Button[]
                     {
-                    new Button()
-                    {
-                        Label = "Listen on YouTube Music", Url=$"https://music.youtube.com/watch?v={songId}"
-                    }
+                        new Button()
+                        {
+                            Label = "Listen on YouTube Music", Url=songURL
+                        }
                     };
                 }
             }
@@ -238,18 +240,20 @@ namespace VRPC.DiscordRPCManager.Activities
             string cleanSongName = "";
             try
             {
-                if (!string.IsNullOrEmpty(songName) && !string.IsNullOrEmpty(artistName)) {
+                if (!string.IsNullOrEmpty(songName) && !string.IsNullOrEmpty(artistName))
+                {
                     cleanSongName = VRPCGlobalFunctions.RemoveArtistFromTitle(songName, artistName);
                 }
 
                 if (!string.IsNullOrEmpty(cleanSongName))
                 {
                     richPresence.Details = cleanSongName;
-                    if (richPresence.Details != cleanSongName) { DiscordRPCData.forceUpdateDiscordRPC = true; }
-                } else if (!string.IsNullOrEmpty(songName))
+                    if (richPresence.Details != cleanSongName) { VRPCGlobalData.MiscellaneousSongData.Clear(); DiscordRPCData.forceUpdateDiscordRPC = true; }
+                }
+                else if (!string.IsNullOrEmpty(songName))
                 {
                     richPresence.Details = songName;
-                    if (richPresence.Details != songName) { DiscordRPCData.forceUpdateDiscordRPC = true; }
+                    if (richPresence.Details != songName) { VRPCGlobalData.MiscellaneousSongData.Clear(); DiscordRPCData.forceUpdateDiscordRPC = true; }
                 }
 
                 if (!string.IsNullOrEmpty(artistName))
@@ -275,6 +279,8 @@ namespace VRPC.DiscordRPCManager.Activities
             UpdateImage(songId, smallSongBanner);
             UpdateAlbum(albumName, releaseYear, isVideo);
             UpdateButton(songId);
+
+            if (isVideo == true) { VRPCGlobalData.MiscellaneousSongData["isvideo"] = "true"; }
         }
     }
 }

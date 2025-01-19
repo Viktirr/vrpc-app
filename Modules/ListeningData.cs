@@ -33,7 +33,7 @@ namespace VRPC.ListeningDataManager
             public int TotalListened { get; set; } = 0;
             public Dictionary<string, Dictionary<string, string>> SongsData { get; set; } = new Dictionary<string, Dictionary<string, string>>();
 
-            public void AddSong(string songName, string artistName, int songTotalSeconds)
+            public void AddSong(string songName, string artistName, int songTotalSeconds, string? platform = null)
             {
                 if (string.IsNullOrEmpty(songName)) { return; }
                 string pattern = @"[^a-zA-Z.,!?']";
@@ -42,7 +42,15 @@ namespace VRPC.ListeningDataManager
 
                 string key = $"{songNameClean}_{artistNameClean}";
 
+                if (key == "_") { key = $"{songName}_{artistName}"; }
+
                 int currentTime = (int)DateTimeOffset.UtcNow.ToUnixTimeSeconds();
+
+                string isVideo = "false";
+                if (VRPCGlobalData.MiscellaneousSongData.ContainsKey("isvideo")) { isVideo = VRPCGlobalData.MiscellaneousSongData["isvideo"]; }
+
+                string songURL = "Unknown";
+                if (VRPCGlobalData.MiscellaneousSongData.ContainsKey("songurl")) { songURL = VRPCGlobalData.MiscellaneousSongData["songurl"]; }
 
                 if (SongsData.ContainsKey(key))
                 {
@@ -80,6 +88,9 @@ namespace VRPC.ListeningDataManager
                     if (!SongsData[key].ContainsKey("daylastplayedtimelistened")) { SongsData[key]["daylastplayedtimelistened"] = songTotalSeconds.ToString(); }
                     if (!SongsData[key].ContainsKey("daymostplayed")) { SongsData[key]["daymostplayed"] = (currentTime / 86400).ToString(); }
                     if (!SongsData[key].ContainsKey("daymostplayedtimelistened")) { SongsData[key]["daymostplayedtimelistened"] = songTotalSeconds.ToString(); }
+                    if (!SongsData[key].ContainsKey("lastplatformlistenedon")) { SongsData[key]["lastplatformlistenedon"] = platform ?? "Unknown"; }
+                    if (!SongsData[key].ContainsKey("isvideo")) { SongsData[key]["isvideo"] = isVideo; }
+                    if (!SongsData[key].ContainsKey("songurl")) { SongsData[key]["songurl"] = songURL; }
 
                     SongsData[key]["lastplayed"] = currentTime.ToString();
                 }
@@ -95,7 +106,9 @@ namespace VRPC.ListeningDataManager
                         { "lastplayed", currentTime.ToString() },
                         { "daylastplayedtimelistened", songTotalSeconds.ToString() },
                         { "daymostplayed", (currentTime / 86400).ToString() },
-                        { "daymostplayedtimelistened", songTotalSeconds.ToString() }
+                        { "daymostplayedtimelistened", songTotalSeconds.ToString() },
+                        { "isvideo", isVideo },
+                        { "songurl", songURL }
                     };
                 }
             }
