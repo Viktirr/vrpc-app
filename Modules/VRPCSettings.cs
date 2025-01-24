@@ -114,7 +114,7 @@ namespace VRPC.Configuration
             public bool EnableListeningToButton { get; set; } = true;
             public bool EnableListeningData { get; set; } = true;
             public bool ShowcaseDataToRPC { get; set; } = false;
-            public bool ShowAppWatermark { get; set; } = true;
+            public bool ShowAppWatermark { get; set; } = false;
         }
 
         private static SettingsData ReadConfigFile()

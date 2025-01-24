@@ -3,6 +3,7 @@ using VRPC.DiscordRPCManager;
 using VRPC.Logging;
 using VRPC.Configuration;
 using Newtonsoft.Json;
+using VRPC.Globals;
 
 namespace VRPC.NativeMessasing
 {
@@ -93,6 +94,21 @@ namespace VRPC.NativeMessasing
             catch (Exception e)
             {
                 log.Write($"[NativeMessagingCommands] Couldn't set configuration data. Exception: {e.Message}");
+            }
+        }
+
+        public static void SendAppVersion()
+        {
+            Log log = new Log();
+
+            try
+            {
+                log.Write($"[NativeMessagingCommands] Sending version from application to extension.");
+                NativeMessaging.SendMessage(NativeMessaging.EncodeMessage($"APPVERSION: {VRPCGlobalData.appVersion}"));
+            }
+            catch (Exception e)
+            {
+                log.Write($"[NativeMessagingCommands] Failed to send version from application to extension. Exception: {e.Data}");
             }
         }
     }
