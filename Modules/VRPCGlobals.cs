@@ -55,7 +55,7 @@ namespace VRPC.Globals
             return value;
         }
 
-        private static float PercentageMatchingString(string string1, string string2)
+        public static float PercentageMatchingString(string string1, string string2)
         {
             // Should check how well 2 strings overlap, initially supposed to be used in identifying various versions of a song (i.e. YouTube's video/song switcher) in ListeningData.
 

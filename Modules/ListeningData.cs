@@ -22,6 +22,8 @@ namespace VRPC.ListeningDataManager
         private static bool ErrorWritingToFile = true;
         private static DateTime LastDataUpdate;
 
+        private static float matchingTextThreshold = 0.8f;
+
         protected class SongData
         {
             // "TotalListened": 0
@@ -29,11 +31,10 @@ namespace VRPC.ListeningDataManager
             // ["SongName_ArtistName"]: [{"name":"SongName"},{"author":"ArtistName"},{"timelistened":"SongTotalSeconds"}]
             // }
             public string versionNumber { get; set; } = VRPCGlobalData.appVersion;
-
             public int TotalListened { get; set; } = 0;
             public Dictionary<string, Dictionary<string, string>> SongsData { get; set; } = new Dictionary<string, Dictionary<string, string>>();
 
-            public void AddSong(string songName, string artistName, int songTotalSeconds)
+            public void AddSong(string songName, string artistName, int songTotalSeconds, bool recursive = false)
             {
                 if (string.IsNullOrEmpty(songName)) { return; }
                 string pattern = @"[^a-zA-Z.,!?']";
@@ -94,12 +95,48 @@ namespace VRPC.ListeningDataManager
                     SongsData[key]["lastplatformlistenedon"] = platform;
                     if (!SongsData[key].ContainsKey("isvideo")) { SongsData[key]["isvideo"] = isVideo; }
                     if (!SongsData[key].ContainsKey("songurl")) { SongsData[key]["songurl"] = songURL; }
-                    
-                    if (SongsData[key].ContainsKey("songurl")) { if(SongsData[key]["songurl"].Contains("Unknown")) { SongsData[key]["songurl"] = songURL; }}
+
+                    if (SongsData[key].ContainsKey("songurl")) { if(SongsData[key]["songurl"].Contains("Unknown")) { SongsData[key]["songurl"] = songURL; } }
 
                     SongsData[key]["lastplayed"] = currentTime.ToString();
                 }
+                else if (isVideo == "true" && recursive == false)
+                {
+                    foreach (string currentKey in SongsData.Keys)
+                    {
+                        float currentMatchingPercentage = VRPCGlobalFunctions.PercentageMatchingString(key, currentKey);
+                        if (currentMatchingPercentage >= matchingTextThreshold)
+                        {
+                            log.Info($"[ListeningData] Found {key} in {currentKey} with {currentMatchingPercentage * 100} percent matching. Using the latter to save values instead.");
+
+                            string _songName = "";
+                            if (SongsData[currentKey].ContainsKey("name"))
+                            {
+                                _songName = SongsData[currentKey]["name"];
+                            }
+                            else { return; }
+
+                            string _artistName = "";
+                            if (SongsData[currentKey].ContainsKey("author"))
+                            {
+                                _artistName = SongsData[currentKey]["author"];
+                            }
+                            else { return; }
+
+                            log.Info($"Song name: {_songName}, Artist Name: {_artistName}");
+                            AddSong(_songName, _artistName, songTotalSeconds, true);
+                            return;
+                        }
+                    }
+
+                    CreateNewSongData();
+                }
                 else
+                {
+                    CreateNewSongData();
+                }
+
+                void CreateNewSongData()
                 {
                     SongsData[key] = new Dictionary<string, string>
                     {
@@ -147,6 +184,7 @@ namespace VRPC.ListeningDataManager
         {
             songData.AddSong(PreviousSongName, PreviousArtistName, activeSongInSeconds);
             songData.TotalListened += activeSongInSeconds;
+            songData.versionNumber = VRPCGlobalData.appVersion;
             return songData;
         }
 
