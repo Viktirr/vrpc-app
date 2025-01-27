@@ -2,6 +2,7 @@
 using VRPC.Logging;
 using VRPC.DiscordRPCManager.Activities;
 using VRPC.Globals;
+using System.Runtime.CompilerServices;
 
 namespace VRPC.DiscordRPCManager
 {
@@ -26,6 +27,8 @@ namespace VRPC.DiscordRPCManager
             ["Soundcloud"] = "1327613957975969823",
             ["Default"] = "1257441643691380828"
         };
+
+        private string pastRichPresenceDetailsData = "";
 
         public void Init(string service)
         {
@@ -92,7 +95,9 @@ namespace VRPC.DiscordRPCManager
                     while (!token.IsCancellationRequested)
                     {
                         client.SetPresence(richPresence);
-                        log.Info($"[DiscordRPC] Discord Rich Presence updated. Now {richPresence.Type} {richPresence.Details} by {richPresence.State}.");
+
+                        if (pastRichPresenceDetailsData != richPresence.Details) { log.Info($"[DiscordRPC] Discord Rich Presence updated. Now {richPresence.Type} {richPresence.Details} by {richPresence.State}."); }
+                        pastRichPresenceDetailsData = richPresence.Details;
 
                         for (int i = 0; i < attemptsPerFileChecks; i++)
                         {

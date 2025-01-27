@@ -8,18 +8,19 @@ namespace VRPC.Configuration
     {
         private static string pathAppData = Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData);
         public static string UserAppDataPath = Path.Combine(pathAppData, "VRPCApp");
-        public static string ListeningDataPath = Path.Combine(UserAppDataPath, "ListeningData.json");
-        public static string ConfigPath = Path.Combine(UserAppDataPath, "Config.json");
+        public static string UserDataPath = Path.Combine(UserAppDataPath, "Data");
+        public static string ListeningDataPath = Path.Combine(UserDataPath, "ListeningData.json");
+        public static string ConfigPath = Path.Combine(UserDataPath, "Config.json");
         public static SettingsData settingsData = new SettingsData();
 
-        public static string LogPath = Path.Combine(UserAppDataPath, "Log.txt");
+        public static string LogPath = Path.Combine(UserDataPath, "Log.txt");
         public static Log log = new Log();
 
         public static void CheckIfApplicationDataFolderExists()
         {
             try
             {
-                Directory.CreateDirectory(UserAppDataPath);
+                Directory.CreateDirectory(UserDataPath);
                 log.Write("[VRPCSettings] Application data directory created.");
             }
             catch (Exception e)
