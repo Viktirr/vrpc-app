@@ -104,7 +104,9 @@ namespace VRPC.ListeningDataManager
                 {
                     foreach (string currentKey in SongsData.Keys)
                     {
-                        float currentMatchingPercentage = VRPCGlobalFunctions.PercentageMatchingString(key, currentKey);
+                        float currentMatchingPercentage1 = VRPCGlobalFunctions.PercentageMatchingString(key, currentKey);
+                        float currentMatchingPercentage2 = VRPCGlobalFunctions.PercentageMatchingString(currentKey, key);
+                        float currentMatchingPercentage = (currentMatchingPercentage1 + currentMatchingPercentage2) / 2;
                         if (currentMatchingPercentage >= matchingTextThreshold)
                         {
                             log.Info($"[ListeningData] Found {key} in {currentKey} with {currentMatchingPercentage * 100} percent matching. Using the latter to save values instead.");
@@ -123,7 +125,7 @@ namespace VRPC.ListeningDataManager
                             }
                             else { return; }
 
-                            log.Info($"Song name: {_songName}, Artist Name: {_artistName}");
+                            log.Write($"[ListeningData] Song name: {_songName}, Artist Name: {_artistName}");
                             AddSong(_songName, _artistName, songTotalSeconds, true);
                             return;
                         }

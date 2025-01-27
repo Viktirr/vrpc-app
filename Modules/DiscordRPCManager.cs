@@ -2,7 +2,6 @@
 using VRPC.Logging;
 using VRPC.DiscordRPCManager.Activities;
 using VRPC.Globals;
-using System.Runtime.CompilerServices;
 
 namespace VRPC.DiscordRPCManager
 {
