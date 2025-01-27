@@ -155,6 +155,8 @@ namespace VRPC.ListeningDataManager
                         { "songurl", songURL }
                     };
                 }
+                
+                VRPCGlobalData.LastListeningDataStats = SongsData[key];
             }
         }
 

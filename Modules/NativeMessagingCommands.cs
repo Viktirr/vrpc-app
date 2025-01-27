@@ -27,7 +27,8 @@ namespace VRPC.NativeMessasing
                 {
                     startTime = richPresence.Timestamps.Start.HasValue ? ((DateTimeOffset)richPresence.Timestamps.Start.Value).ToUnixTimeSeconds().ToString() : "0";
                     endTime = richPresence.Timestamps.End.HasValue ? ((DateTimeOffset)richPresence.Timestamps.End.Value).ToUnixTimeSeconds().ToString() : "0";
-                } catch { log.Write("[NativeMessagingCommands] Couldn't fetch timestamps from rich presence."); }
+                }
+                catch { log.Write("[NativeMessagingCommands] Couldn't fetch timestamps from rich presence."); }
 
                 try { RPCString = $"RPC: {richPresence.Details}{separator}{richPresence.State}{separator}{richPresence.Assets.LargeImageText}{separator}{richPresence.Assets.LargeImageKey}{separator}{Program.isDiscordRPCRunning}{separator}{startTime}{separator}{endTime}{separator}{Program.isReceivingRPCData}{separator}{DiscordRPCData.currentService}"; }
                 catch
@@ -41,14 +42,15 @@ namespace VRPC.NativeMessasing
             catch (Exception e) { log.Write($"[NativeMessagingCommands] Couldn't send RPC data to extension. Exception: {e.Data}. RPCString: {RPCString}"); }
         }
 
-        public static void SendConfigFull() {
+        public static void SendConfigFull()
+        {
             Log log = new Log();
 
             try
             {
                 log.Write("[NativeMessagingCommands] Sending full configuration data.");
                 var settingsData = VRPCSettings.settingsData;
-                
+
                 string jsonSettings = JsonConvert.SerializeObject(settingsData);
                 NativeMessaging.SendMessage(NativeMessaging.EncodeMessage($"CONFIG: {jsonSettings}"));
             }
@@ -58,14 +60,15 @@ namespace VRPC.NativeMessasing
             }
         }
 
-        public static void SendConfigDetailed(string config) {
+        public static void SendConfigDetailed(string config)
+        {
             Log log = new Log();
 
             try
             {
                 log.Write($"[NativeMessagingCommands] Sending detailed configuration data for {config}.");
                 var settingsData = VRPCSettings.GetSetting(config);
-                
+
                 string jsonSettings = JsonConvert.SerializeObject(settingsData);
                 NativeMessaging.SendMessage(NativeMessaging.EncodeMessage($"CONFIGINFO: {jsonSettings}"));
             }
@@ -75,7 +78,8 @@ namespace VRPC.NativeMessasing
             }
         }
 
-        public static void SetConfig(Dictionary<int,string> config) {
+        public static void SetConfig(Dictionary<int, string> config)
+        {
             // Receiving message looks like this:
             // SET_CONFIG
             // ConfigName
@@ -110,6 +114,30 @@ namespace VRPC.NativeMessasing
             {
                 log.Write($"[NativeMessagingCommands] Failed to send version from application to extension. Exception: {e.Data}");
             }
+        }
+
+        public static void SendListeningDataStats()
+        {
+            Log log = new Log();
+
+            try
+            {
+                if (VRPCGlobalData.LastListeningDataStats.Count != 0)
+                {
+                    log.Write("$[NativeMessagingCommands] Sending listening data statistics from application to extension.");
+                    string jsonMessage = JsonConvert.SerializeObject(VRPCGlobalData.LastListeningDataStats);
+                    NativeMessaging.SendMessage(NativeMessaging.EncodeMessage($"LDSTATS: {jsonMessage}"));
+                }
+                else
+                {
+                    NativeMessaging.SendMessage(NativeMessaging.EncodeMessage($"LDSTATS: EMPTY"));
+                }
+            }
+            catch (Exception e)
+            {
+                log.Write($"[NativeMessagingCommands] Failed to send listening data statistics from application to extension. Exception {e.Data}");
+            }
+            return;
         }
     }
 }

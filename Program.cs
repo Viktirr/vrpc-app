@@ -40,6 +40,7 @@ class Program
         if (messageDictionary[0].Contains("GET_CONFIG_FULL")) { NativeMessagingCommands.SendConfigFull(); return; }
         if (messageDictionary[0].Contains("GET_CONFIG_INFO")) { if (messageDictionary.Count > 1) { NativeMessagingCommands.SendConfigDetailed(messageDictionary[1]); return; } }
         if (messageDictionary[0].Contains("GET_APP_VERSION")) { NativeMessagingCommands.SendAppVersion(); return; }
+        if (messageDictionary[0].Contains("GET_LISTENINGDATA")) { NativeMessagingCommands.SendListeningDataStats(); return; }
         if (messageDictionary[0].Contains("SET_CONFIG")) { NativeMessagingCommands.SetConfig(messageDictionary); return; }
 
         if (messageDictionary[0].Contains("Program")) { NativeMessaging.ConnectivityStatus(messageDictionary); return; }
