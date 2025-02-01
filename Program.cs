@@ -4,9 +4,13 @@ using VRPC.NativeMessasing;
 using VRPC.Configuration;
 using VRPC.ListeningDataManager;
 using VRPC.Globals;
+using System.ComponentModel;
+using VRPC.Packaging;
 
 class Program
 {
+    public static bool runningOnBrowser = false;
+
     private static Log log = new Log();
     public static bool isDiscordRPCRunning = false;
     public static bool isReceivingRPCData = false;
@@ -144,6 +148,15 @@ class Program
 
     static void Main(string[] args)
     {
+        if (args.Count() == 0) { log.Info("Assuming running natively."); }
+        else
+        {
+            if (args[0].Contains(".json")) { log.Info("Assuming running from browser."); runningOnBrowser = true; }
+            else { log.Info("Assuming running natively."); }
+        }
+
+        if (!runningOnBrowser) { VRPCManager.Start(); return; }
+
         VRPCSettings.CheckIfApplicationDataFolderExists();
         VRPCSettings.CheckSettings();
         log.Write("[Main] Reading Settings from file.");

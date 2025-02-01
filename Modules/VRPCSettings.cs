@@ -110,7 +110,7 @@ namespace VRPC.Configuration
         public class SettingsData
         {
             public bool LoggingWriteEnabled { get; set; } = false;
-            public bool DisableClearingLogs { get; set; } = true;
+            public bool DisableClearingLogs { get; set; } = false;
             public bool EnableDiscordRPC { get; set; } = true;
             public bool EnableListeningToButton { get; set; } = true;
             public bool EnableListeningData { get; set; } = true;
