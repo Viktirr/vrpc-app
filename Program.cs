@@ -4,7 +4,6 @@ using VRPC.NativeMessasing;
 using VRPC.Configuration;
 using VRPC.ListeningDataManager;
 using VRPC.Globals;
-using System.ComponentModel;
 using VRPC.Packaging;
 
 class Program
@@ -155,7 +154,7 @@ class Program
             else { log.Info("Assuming running natively."); }
         }
 
-        if (!runningOnBrowser) { VRPCManager.Start(); return; }
+        if (!runningOnBrowser) { Gtk.Application.Init(); new VRPCInstaller(); Gtk.Application.Run(); return; }
 
         VRPCSettings.CheckIfApplicationDataFolderExists();
         VRPCSettings.CheckSettings();
