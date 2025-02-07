@@ -145,6 +145,30 @@ class Program
         ListeningData.Heartbeat(listeningDataCancellationToken, ShutdownRequested);
     }
 
+    static void UseGUI(string[] args)
+    {
+        bool isUninstall = false;
+
+        string roamingAppDataPath = Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData);
+        string appName = "VRPCApp";
+        string appNamePath = System.IO.Path.Combine(roamingAppDataPath, appName);
+
+        string sourceFilePath = System.Reflection.Assembly.GetExecutingAssembly().Location;
+        if (sourceFilePath.Contains(appNamePath)) { isUninstall = true; PackagingGlobals.sameFolderString = "\n\nYou ran this application from the installation folder. If you wish to uninstall the application click the Uninstall button below."; }
+        if (Directory.Exists(appNamePath) && isUninstall == false)
+        {
+            isUninstall = true;
+            PackagingGlobals.uninstallString = $"\n\nPLEASE READ\nYou were launched to the uninstaller because the application is already installed. If this is a mistake, delete the folder {appNamePath} and relaunch the installer.\n\nUPDATING:\nIf you're updating to a new version, first select Uninstall below then relaunch the installer.";
+        }
+
+        foreach (string arg in args) { if (arg == "--uninstall") { isUninstall = true; } }
+
+        Gtk.Application.Init();
+        if (isUninstall) { new UninstallWindow(); }
+        else { new InstallWindow(); }
+        Gtk.Application.Run();
+    }
+
     static void Main(string[] args)
     {
         if (args.Count() == 0) { log.Info("Assuming running natively."); }
@@ -154,7 +178,7 @@ class Program
             else { log.Info("Assuming running natively."); }
         }
 
-        if (!runningOnBrowser) { Gtk.Application.Init(); new VRPCInstaller(); Gtk.Application.Run(); return; }
+        if (!runningOnBrowser) { UseGUI(args); return; }
 
         VRPCSettings.CheckIfApplicationDataFolderExists();
         VRPCSettings.CheckSettings();
