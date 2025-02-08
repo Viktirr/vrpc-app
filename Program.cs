@@ -153,12 +153,16 @@ class Program
         string appName = "VRPCApp";
         string appNamePath = System.IO.Path.Combine(roamingAppDataPath, appName);
 
-        string sourceFilePath = System.Reflection.Assembly.GetExecutingAssembly().Location;
+        string sourceFilePath = System.AppContext.BaseDirectory;
+
         if (sourceFilePath.Contains(appNamePath)) { isUninstall = true; PackagingGlobals.sameFolderString = "\n\nYou ran this application from the installation folder. If you wish to uninstall the application click the Uninstall button below."; }
         if (Directory.Exists(appNamePath) && isUninstall == false)
         {
-            isUninstall = true;
-            PackagingGlobals.uninstallString = $"\n\nPLEASE READ\nYou were launched to the uninstaller because the application is already installed. If this is a mistake, delete the folder {appNamePath} and relaunch the installer.\n\nUPDATING:\nIf you're updating to a new version, first select Uninstall below then relaunch the installer.";
+            if (File.Exists(Path.Combine(appNamePath, "VRPC.exe")))
+            {
+                isUninstall = true;
+                PackagingGlobals.uninstallString = $"\n\nPLEASE READ\nYou were launched to the uninstaller because the application is already installed. If this is a mistake, delete the folder {appNamePath} and relaunch the installer.\n\nUPDATES:\nIf you're updating to a new version, first select Uninstall below then relaunch the installer.";
+            }
         }
 
         foreach (string arg in args) { if (arg == "--uninstall") { isUninstall = true; } }

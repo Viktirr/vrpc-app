@@ -13,7 +13,8 @@ namespace VRPC.Packaging
         public string type { get; set; }
         public string[] allowed_extensions { get; set; }
 
-        public ManifestFileData(string _path) {
+        public ManifestFileData(string _path)
+        {
             name = "vrpc";
             description = "Transfers Rich Presence data to Discord and saves Listening Data locally.";
             path = _path;
@@ -116,7 +117,7 @@ namespace VRPC.Packaging
             string appName = "VRPCApp";
             string appNamePath = System.IO.Path.Combine(roamingAppDataPath, appName);
 
-            string sourceFilePath = System.Reflection.Assembly.GetExecutingAssembly().Location;
+            string sourceFilePath = System.AppContext.BaseDirectory;
             string destinationFilePath = System.IO.Path.Combine(appNamePath, "VRPC.exe");
 
             // Create folder
@@ -169,12 +170,45 @@ namespace VRPC.Packaging
                 return;
             }
 
+            // Check directory of program - Checks if there are more files than the installer should ever have and if the file sizes are greater than the installer should have.
+            Application.Invoke(delegate { description.Text = description.Text + $"\nChecking {sourceFilePath}..."; });
+            string[] filesInDirectory = Directory.GetFiles(sourceFilePath);
+
+            if (filesInDirectory.Length > 270)
+            {
+                Application.Invoke(delegate { description.Text = description.Text + $"\n\nSomething seems off... If not already extract the installer into a separate directory. Aborting..."; });
+                EnableButtons();
+                return;
+            }
+
+            if (filesInDirectory.Length > 1) // This check is made in case the application is built on single file compile.
+            {
+                foreach (string file in filesInDirectory)
+                {
+                    FileInfo fileInfo = new FileInfo(file);
+
+                    if (fileInfo.Length > 20 * 1024 * 1024)
+                    {
+                        Application.Invoke(delegate { description.Text = description.Text + $"\n\nSomething seems off... If not already extract the installer into a separate directory. Aborting..."; });
+                        EnableButtons();
+                        return;
+                    }
+                }
+            }
+
             // Copy program to Application Data
             Application.Invoke(delegate { description.Text = description.Text + $"\nCopying {sourceFilePath} to {destinationFilePath}"; });
 
             try
             {
-                File.Copy(sourceFilePath, destinationFilePath, true);
+                foreach (string file in filesInDirectory)
+                {
+                    string fileName = System.IO.Path.GetFileName(file);
+
+                    if (fileName.Contains("VRPCInstall")) { fileName = "VRPC.exe"; }
+                    string destFile = System.IO.Path.Combine(appNamePath, fileName);
+                    File.Copy(file, destFile, true);
+                }
             }
             catch
             {
@@ -188,7 +222,7 @@ namespace VRPC.Packaging
             ManifestFileData manifestFileData = new ManifestFileData($"{appNamePath}\\VRPC.exe");
 
             string manifestFileDataJson = JsonConvert.SerializeObject(manifestFileData, Formatting.Indented);
-            File.WriteAllText(System.IO.Path.Combine(appNamePath,"vrpc.json"), manifestFileDataJson);
+            File.WriteAllText(System.IO.Path.Combine(appNamePath, "vrpc.json"), manifestFileDataJson);
 
             // Create registry
             if (System.Runtime.InteropServices.RuntimeInformation.IsOSPlatform(System.Runtime.InteropServices.OSPlatform.Windows))

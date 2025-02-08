@@ -164,9 +164,9 @@ namespace VRPC.Packaging
                     string[] files = Directory.GetFiles(installPath);
                     Console.WriteLine($"There are {files.Length} files in {installPath}");
 
-                    if (files.Length > 6)
+                    if (files.Length > 270)
                     {
-                        Console.WriteLine("The directory contains more than 6 files. Deletion process is canceled.");
+                        Console.WriteLine("The directory contains more than 270 files. Deletion process is canceled.");
                         Application.Invoke(delegate { description.Text = description.Text + $"\n\nThere seem to be more files than necessary for deletion, please delete them yourself at {installPath}. You may now close the uninstaller."; });
                         EnableButtons();
                         return;
