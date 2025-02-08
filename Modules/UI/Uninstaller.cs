@@ -30,6 +30,11 @@ namespace VRPC.Packaging
             };
             mainBox.PackStart(description, false, false, 20);
 
+            var checkButton = new CheckButton($"Remove all configuration and user data (including Listening Data)");
+            checkButton.Halign = Align.Center;
+            
+            mainBox.PackStart(checkButton, false, false, 20);
+
             var buttonBox = new Box(Orientation.Horizontal, 10)
             {
                 BorderWidth = 20

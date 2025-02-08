@@ -5,11 +5,12 @@ namespace VRPC.Packaging
         public static string sameFolderString = "";
         public static string uninstallString = "";
 
-        public static string cssString =
+        public const string cssString =
 @"window {
     background-color: #222;
     color: #fff;
 }
+
 /* Remove default button decorations */
 button#mainButtons {
     background-image: none;
