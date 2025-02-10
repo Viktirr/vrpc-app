@@ -2,7 +2,6 @@ namespace VRPC.Packaging
 {
     public static class PackagingGlobals
     {
-        public static string sameFolderString = "";
         public static string uninstallString = "";
 
         public const string cssString =

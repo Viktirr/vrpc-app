@@ -9,6 +9,7 @@ namespace VRPC.Packaging
 
         Button uninstallButton = null!;
         Button cancelButton = null!;
+        CheckButton checkButton = null!;
 
         public UninstallWindow() : base("VRPC Uninstaller")
         {
@@ -23,16 +24,16 @@ namespace VRPC.Packaging
             header.UseMarkup = true;
             mainBox.PackStart(header, false, false, 20);
 
-            description = new Label($"You may uninstall the VRPC application by selecting Uninstall. Your app activity (Listening Data) and preferences will be deleted.{PackagingGlobals.sameFolderString}{PackagingGlobals.uninstallString}")
+            description = new Label($"You may uninstall the VRPC application by selecting Uninstall. Your app activity (Listening Data) and preferences will be deleted. \n\nYou ran the uninstaller, meaning by clicking Uninstall below the application will uninstall. {PackagingGlobals.uninstallString}")
             {
                 LineWrap = true,
                 Justify = Justification.Center
             };
             mainBox.PackStart(description, false, false, 20);
 
-            var checkButton = new CheckButton($"Remove all configuration and user data (including Listening Data)");
+            checkButton = new CheckButton($"Remove all configuration and user data (including Listening Data)");
             checkButton.Halign = Align.Center;
-            
+
             mainBox.PackStart(checkButton, false, false, 20);
 
             var buttonBox = new Box(Orientation.Horizontal, 10)
@@ -74,35 +75,41 @@ namespace VRPC.Packaging
         public void OnUninstallButtonClicked(object? sender, EventArgs e)
         {
             description.Text = "Uninstalling...";
+            uninstallButton.Sensitive = false;
+            cancelButton.Sensitive = false;
+            checkButton.Visible = false;
+
             Thread uninstallThread = new Thread(Uninstall);
             uninstallThread.Start();
         }
 
         public void EnableButtons()
         {
-            uninstallButton.Visible = false;
-            cancelButton.Name = "mainButtons";
-            cancelButton.Label = "Close";
-            cancelButton.Sensitive = true;
+            Application.Invoke(delegate
+            {
+                uninstallButton.Visible = false;
+                cancelButton.Name = "mainButtons";
+                cancelButton.Label = "Close";
+                cancelButton.Sensitive = true;
+            });
         }
 
         public void Uninstall()
         {
-            Thread.Sleep(300);
-            // Disable buttons
-            Application.Invoke(delegate
-            {
-                uninstallButton.Sensitive = false;
-                cancelButton.Sensitive = false;
-            });
+            Console.WriteLine("User started uninstallation.");
+
+            Thread.Sleep(200);
 
             // Check installation directory
             Application.Invoke(delegate { description.Text = description.Text + "\nSelecting default installation folder."; });
+            Console.WriteLine("Selecting default installation folder.");
             string installPath = System.IO.Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "VRPCApp");
+            Console.WriteLine($"The following installation folder was selected: {installPath}");
 
-            Application.Invoke(delegate { description.Text = description.Text + $"\nChecking registry key for installation folder at Software\\Viktir\\vrpc."; });
             if (System.Runtime.InteropServices.RuntimeInformation.IsOSPlatform(System.Runtime.InteropServices.OSPlatform.Windows))
             {
+                Application.Invoke(delegate { description.Text = description.Text + $"\nChecking registry key for installation folder at Software\\Viktir\\vrpc."; });
+                Console.WriteLine($"Checking registry key for installation folder at Software\\Viktir\\vrpc");
                 try
                 {
                     RegistryKey? currentUserKey = Registry.CurrentUser.OpenSubKey(@"Software\Viktir\vrpc");
@@ -111,8 +118,16 @@ namespace VRPC.Packaging
                     {
                         string? newInstallPath = currentUserKey.GetValue("InstallPath") as string;
 
-                        if (!string.IsNullOrEmpty(newInstallPath)) { Console.WriteLine($"InstallPath found: {installPath}"); installPath = newInstallPath; }
-                        else { Console.WriteLine("InstallPath does not exist."); }
+                        if (!string.IsNullOrEmpty(newInstallPath))
+                        {
+                            Console.WriteLine($"InstallPath found: {newInstallPath}");
+                            Console.WriteLine($"Now using {newInstallPath} for uninstallation");
+                            installPath = newInstallPath;
+                        }
+                        else
+                        {
+                            Console.WriteLine("InstallPath does not exist.");
+                        }
 
                         currentUserKey.Close();
                     }
@@ -128,6 +143,7 @@ namespace VRPC.Packaging
 
                 // Delete registry keys for Native Messaging & installation path
                 Application.Invoke(delegate { description.Text = description.Text + "\nDeleting registry keys for Native Messaging and Installation Folder:"; });
+                Console.WriteLine($"Deleting registry keys for Native Messaging and Installation.");
                 string[] registryKeys = new string[]
                 {
                     @"Software\Mozilla\NativeMessagingHosts\vrpc",
@@ -147,6 +163,7 @@ namespace VRPC.Packaging
                             {
                                 string keyName = currentKey.Name;
                                 Application.Invoke(delegate { description.Text = description.Text + $"\nDeleting registry {keyName}"; });
+                                Console.WriteLine($"Deleting: {keyName}");
                                 currentKey.DeleteSubKeyTree("");
                             }
                             else
@@ -156,12 +173,17 @@ namespace VRPC.Packaging
                             }
                         }
                     }
-                    catch (Exception ex) { Console.WriteLine($"Error deleting {key}:{ex.Message}"); Application.Invoke(delegate { description.Text = description.Text + $"\nError deleting {key}: {ex.Message}"; }); }
+                    catch (Exception ex)
+                    {
+                        Console.WriteLine($"Error deleting {key}:{ex.Message}");
+                        Application.Invoke(delegate { description.Text = description.Text + $"\nError deleting {key}: {ex.Message}"; });
+                    }
                 }
             }
 
             // Delete contents of installation folder
             Application.Invoke(delegate { description.Text = description.Text + $"\nDeleting contents at {installPath}."; });
+            Console.WriteLine($"Deleting contents at {installPath}");
             if (Directory.Exists(installPath))
             {
                 try
@@ -169,9 +191,9 @@ namespace VRPC.Packaging
                     string[] files = Directory.GetFiles(installPath);
                     Console.WriteLine($"There are {files.Length} files in {installPath}");
 
-                    if (files.Length > 270)
+                    if (files.Length > 300)
                     {
-                        Console.WriteLine("The directory contains more than 270 files. Deletion process is canceled.");
+                        Console.WriteLine("The directory contains more than 300 files. Deletion process is canceled.");
                         Application.Invoke(delegate { description.Text = description.Text + $"\n\nThere seem to be more files than necessary for deletion, please delete them yourself at {installPath}. You may now close the uninstaller."; });
                         EnableButtons();
                         return;
@@ -179,6 +201,19 @@ namespace VRPC.Packaging
                     else
                     {
                         Application.Invoke(delegate { description.Text = description.Text + $"\nDeleting {installPath}"; });
+
+                        foreach (string file in files)
+                        {
+                            try
+                            {
+                                File.Delete(file);
+                            }
+                            catch (Exception e)
+                            {
+                                Console.WriteLine($"Error deleting file {file}. {e.Data}");
+                            }
+                            Console.WriteLine($"File {file} deleted.");
+                        }
                         Directory.Delete(installPath, true);
                         Console.WriteLine("All files and directories have been deleted.");
                     }
@@ -195,8 +230,34 @@ namespace VRPC.Packaging
             {
                 Console.WriteLine("The specified directory does not exist.");
             }
+
             Application.Invoke(delegate { description.Text = description.Text + $"\n\nUninstalled. You may now close the uninstaller."; });
             EnableButtons();
+
+            // Additional cleanup from %temp%
+            string appDir = AppContext.BaseDirectory;
+            string tempDir = System.IO.Path.GetTempPath();
+
+            if (appDir.Contains(tempDir))
+            {
+                Console.WriteLine($"Attempting partial cleanup from {appDir}");
+
+                string[] files = Directory.GetFiles(appDir);
+
+                foreach (string file in files)
+                {
+                    try
+                    {
+                        File.Delete(file);
+                    }
+                    catch
+                    {
+                        Console.WriteLine($"Failed to delete {file}.");
+                    }
+                    Console.WriteLine($"Deleted {file}.");
+                }
+            }
+
         }
     }
 }

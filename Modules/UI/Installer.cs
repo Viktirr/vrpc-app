@@ -2,6 +2,7 @@ using System.Runtime.CompilerServices;
 using Gtk;
 using Microsoft.Win32;
 using Newtonsoft.Json;
+using VRPC.Globals;
 
 namespace VRPC.Packaging
 {
@@ -89,75 +90,83 @@ namespace VRPC.Packaging
         public void OnInstallButtonClicked(object? sender, EventArgs e)
         {
             description.Text = "Installing...";
+            installButton.Sensitive = false;
+            cancelButton.Sensitive = false;
+
             Thread installThread = new Thread(Install);
             installThread.Start();
         }
 
         public void EnableButtons()
         {
-            installButton.Visible = false;
-            cancelButton.Name = "mainButtons";
-            cancelButton.Label = "Close";
-            cancelButton.Sensitive = true;
+            Application.Invoke(delegate
+            {
+                installButton.Visible = false;
+                cancelButton.Name = "mainButtons";
+                cancelButton.Label = "Close";
+                cancelButton.Sensitive = true;
+            });
         }
 
         public void Install()
         {
-            Thread.Sleep(300);
+            Console.WriteLine("User started installation.");
 
-            // Disable buttons
-            Application.Invoke(delegate
-            {
-                installButton.Sensitive = false;
-                cancelButton.Sensitive = false;
-            });
+            Thread.Sleep(200);
 
             // Set variables for installation
             string roamingAppDataPath = Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData);
-            string appName = "VRPCApp";
-            string appNamePath = System.IO.Path.Combine(roamingAppDataPath, appName);
+            string appNamePath = System.IO.Path.Combine(roamingAppDataPath, VRPCGlobalData.appName);
 
             string sourceFilePath = System.AppContext.BaseDirectory;
             string destinationFilePath = System.IO.Path.Combine(appNamePath, "VRPC.exe");
 
             // Create folder
-            Application.Invoke(delegate { this.description.Text = description.Text + $"\nCreating folder {appNamePath}"; });
+            Application.Invoke(delegate { description.Text = description.Text + $"\nCreating folder {appNamePath}"; });
+            Console.WriteLine($"Creating folder {appNamePath}");
 
             try
             {
                 if (!Directory.Exists(appNamePath))
                 {
                     Directory.CreateDirectory(appNamePath);
+                    Console.WriteLine($"Folder {appNamePath} created successfully");
                 }
             }
             catch
             {
                 Application.Invoke(delegate { description.Text = description.Text + $"\n\nError: Couldn't create folder. Installation cannot proceed. Check your available storage space. Press close to exit."; });
+                Console.WriteLine($"Error: Couldn't create folder {appNamePath}.");
                 EnableButtons();
                 return;
             }
 
             // Check storage requirements
             Application.Invoke(delegate { description.Text = description.Text + "\nChecking available free space."; });
+            Console.WriteLine($"Checking available free space...");
             try
             {
                 string? rootPath = System.IO.Path.GetPathRoot(roamingAppDataPath);
+                Console.WriteLine($"Checking {rootPath} for free space...");
                 if (rootPath == null)
                 {
                     Application.Invoke(delegate { description.Text = description.Text + "\n\nUnable to determine the root path to check storage space. Check your available storage space. Press close to exit."; });
+                    Console.WriteLine($"Unable to determine {rootPath} to determine free space.");
                     EnableButtons();
                     return;
                 }
 
                 DriveInfo driveInfo = new DriveInfo(rootPath);
+                Console.WriteLine($"Unable to determine {rootPath} to determine free space.");
                 if (driveInfo.IsReady)
                 {
-                    long installSpace = 50 * 1024 * 1024; // 50 MB
+                    long installSpace = 100 * 1024 * 1024; // 100 MiB
                     long availableFreeSpace = driveInfo.AvailableFreeSpace;
 
                     if (availableFreeSpace < installSpace)
                     {
                         Application.Invoke(delegate { description.Text = description.Text + "\n\nNot enough free space found. Please free up some storage and try again. No changes were done. Press close to exit."; });
+                        Console.WriteLine($"Error: Not enough free space..");
                         EnableButtons();
                         return;
                     }
@@ -166,30 +175,37 @@ namespace VRPC.Packaging
             catch
             {
                 Application.Invoke(delegate { description.Text = description.Text + "\n\nError: Couldn't check storage space. Installation cannot proceed. Press close to exit."; });
+                Console.WriteLine($"Error: Couldn't check storage space. Aborting.");
                 EnableButtons();
                 return;
             }
 
             // Check directory of program - Checks if there are more files than the installer should ever have and if the file sizes are greater than the installer should have.
             Application.Invoke(delegate { description.Text = description.Text + $"\nChecking {sourceFilePath}..."; });
+            Console.WriteLine($"Initialising check from the installer {sourceFilePath}");
             string[] filesInDirectory = Directory.GetFiles(sourceFilePath);
 
-            if (filesInDirectory.Length > 270)
+            int maxFilesInDirectory = 270;
+            if (filesInDirectory.Length > maxFilesInDirectory)
             {
                 Application.Invoke(delegate { description.Text = description.Text + $"\n\nSomething seems off... If not already extract the installer into a separate directory. Aborting..."; });
+                Console.WriteLine($"There are more files than there should be ({filesInDirectory.Length}/{maxFilesInDirectory}) in the installer directory. Aborting.");
                 EnableButtons();
                 return;
             }
 
             if (filesInDirectory.Length > 1) // This check is made in case the application is built on single file compile.
             {
+                long totalSize = 0;
                 foreach (string file in filesInDirectory)
                 {
                     FileInfo fileInfo = new FileInfo(file);
+                    totalSize += fileInfo.Length;
 
-                    if (fileInfo.Length > 20 * 1024 * 1024)
+                    if (fileInfo.Length > 20 * 1024 * 1024 || totalSize > 150 * 1024 * 1024)
                     {
                         Application.Invoke(delegate { description.Text = description.Text + $"\n\nSomething seems off... If not already extract the installer into a separate directory. Aborting..."; });
+                        Console.WriteLine($"One of the files is larger than 20 MiB or the total amount of files exceed 150 MiB, assuming these are not the files from the program. Aborting.");
                         EnableButtons();
                         return;
                     }
@@ -198,6 +214,7 @@ namespace VRPC.Packaging
 
             // Copy program to Application Data
             Application.Invoke(delegate { description.Text = description.Text + $"\nCopying {sourceFilePath} to {destinationFilePath}"; });
+            Console.WriteLine($"Initialising file copy");
 
             try
             {
@@ -208,29 +225,36 @@ namespace VRPC.Packaging
                     if (fileName.Contains("VRPCInstall")) { fileName = "VRPC.exe"; }
                     string destFile = System.IO.Path.Combine(appNamePath, fileName);
                     File.Copy(file, destFile, true);
+                    Console.WriteLine($"Copied {file} to {destFile}");
                 }
             }
             catch
             {
                 Application.Invoke(delegate { description.Text = description.Text + "\n\nError: Couldn't copy file. Installation cannot proceed. Press close to exit."; });
+                Console.WriteLine($"Error: Couldn't copy file. Aborting.");
                 EnableButtons();
                 return;
             }
 
             // Create manifest file
             Application.Invoke(delegate { description.Text = description.Text + $"\nCreating manifest file at {appNamePath}"; });
+            Console.WriteLine($"Creating manifest file at {appNamePath}");
+
             ManifestFileData manifestFileData = new ManifestFileData($"{appNamePath}\\VRPC.exe");
 
             string manifestFileDataJson = JsonConvert.SerializeObject(manifestFileData, Formatting.Indented);
             File.WriteAllText(System.IO.Path.Combine(appNamePath, "vrpc.json"), manifestFileDataJson);
+            Console.WriteLine($"Manifest file {System.IO.Path.Combine(appNamePath, "vrpc.json")} created.");
 
             // Create registry
             if (System.Runtime.InteropServices.RuntimeInformation.IsOSPlatform(System.Runtime.InteropServices.OSPlatform.Windows))
             {
+                Console.WriteLine($"Initialising registry key creation.");
                 try
                 {
                     string currentKey = @"Software\Microsoft\Windows\CurrentVersion\Uninstall\VRPCApp";
                     Application.Invoke(delegate { description.Text = description.Text + $"\nCreating uninstallation registry keys at {currentKey}"; });
+                    Console.WriteLine($"Creating registry key for uninstallation at {currentKey}");
                     using (RegistryKey key = Registry.CurrentUser.CreateSubKey(currentKey))
                     {
                         key.SetValue("DisplayName", "VRPC Application");
@@ -245,6 +269,7 @@ namespace VRPC.Packaging
 
                     currentKey = @"Software\Viktir\vrpc";
                     Application.Invoke(delegate { description.Text = description.Text + $"\nCreating registry keys for the application at {currentKey}"; });
+                    Console.WriteLine($"Creating registry key for the application at {currentKey}");
                     using (RegistryKey key = Registry.CurrentUser.CreateSubKey(currentKey))
                     {
                         key.SetValue("InstallPath", $"{appNamePath}");
@@ -253,6 +278,7 @@ namespace VRPC.Packaging
 
                     currentKey = @"Software\Mozilla\NativeMessagingHosts\vrpc";
                     Application.Invoke(delegate { description.Text = description.Text + $"\nCreating registry keys for Firefox Native Messaging support at {currentKey}"; });
+                    Console.WriteLine($"Creating registry key for Firefox Native Messaging support at {currentKey}");
                     using (RegistryKey key = Registry.CurrentUser.CreateSubKey(currentKey))
                     {
                         key.SetValue("(Default)", $"{appNamePath}\\vrpc.json");
@@ -260,6 +286,7 @@ namespace VRPC.Packaging
 
                     currentKey = @"Software\Chrome\NativeMessagingHosts\vrpc";
                     Application.Invoke(delegate { description.Text = description.Text + $"\nCreating registry keys for Chrome Native Messaging support at {currentKey}"; });
+                    Console.WriteLine($"Creating registry key for Chrome Native Messaging support at {currentKey}");
                     using (RegistryKey key = Registry.CurrentUser.CreateSubKey(currentKey))
                     {
                         key.SetValue("(Default)", $"{appNamePath}\\vrpc.json");
@@ -267,6 +294,7 @@ namespace VRPC.Packaging
 
                     currentKey = @"Software\Microsoft\Edge\NativeMessagingHosts\vrpc";
                     Application.Invoke(delegate { description.Text = description.Text + $"\nCreating registry keys for Edge Native Messaging support at {currentKey}"; });
+                    Console.WriteLine($"Creating registry key for Edge Native Messaging support at {currentKey}");
                     using (RegistryKey key = Registry.CurrentUser.CreateSubKey(currentKey))
                     {
                         key.SetValue("(Default)", $"{appNamePath}\\vrpc.json");
@@ -275,11 +303,13 @@ namespace VRPC.Packaging
                 catch
                 {
                     Application.Invoke(delegate { description.Text = description.Text + "\n\nError: Couldn't create registry keys for the application & Native Messaging support. Installation cannot proceed. Press close to exit."; });
+                    Console.WriteLine($"Creating registry keys failed. Aborting.");
                     EnableButtons();
                     return;
                 }
             }
             Application.Invoke(delegate { description.Text = description.Text + $"\n\nInstalled. You may now close the installer."; });
+            Console.WriteLine($"The application is now installed.");
             EnableButtons();
         }
     }

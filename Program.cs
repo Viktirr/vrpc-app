@@ -148,28 +148,47 @@ class Program
     static void UseGUI(string[] args)
     {
         bool isUninstall = false;
+        bool isUninstallTemp = false;
 
         string roamingAppDataPath = Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData);
-        string appName = "VRPCApp";
-        string appNamePath = System.IO.Path.Combine(roamingAppDataPath, appName);
+        string appNamePath = Path.Combine(roamingAppDataPath, VRPCGlobalData.appName);
 
-        string sourceFilePath = System.AppContext.BaseDirectory;
+        string sourceFilePath = AppContext.BaseDirectory;
 
-        if (sourceFilePath.Contains(appNamePath)) { isUninstall = true; PackagingGlobals.sameFolderString = "\n\nYou ran this application from the installation folder. If you wish to uninstall the application click the Uninstall button below."; }
-        if (Directory.Exists(appNamePath) && isUninstall == false)
+        if (Directory.Exists(appNamePath) && !appNamePath.Contains(sourceFilePath))
         {
             if (File.Exists(Path.Combine(appNamePath, "VRPC.exe")))
             {
-                isUninstall = true;
+                isUninstallTemp = true;
                 PackagingGlobals.uninstallString = $"\n\nPLEASE READ\nYou were launched to the uninstaller because the application is already installed. If this is a mistake, delete the folder {appNamePath} and relaunch the installer.\n\nUPDATES:\nIf you're updating to a new version, first select Uninstall below then relaunch the installer.";
             }
         }
 
-        foreach (string arg in args) { if (arg == "--uninstall") { isUninstall = true; } }
+        foreach (string arg in args)
+        {
+            if (arg == "--uninstall")
+            {
+                isUninstall = true;
+            }
+            if (arg == "--uninstall-temp")
+            {
+                isUninstallTemp = true;
+            }
+        }
 
         Gtk.Application.Init();
-        if (isUninstall) { new UninstallWindow(); }
-        else { new InstallWindow(); }
+        if (isUninstall)
+        {
+            CreateUninstaller.CreateUninstall();
+        }
+        else if (isUninstallTemp)
+        {
+            new UninstallWindow();
+        }
+        else
+        {
+            new InstallWindow();
+        }
         Gtk.Application.Run();
     }
 
@@ -182,7 +201,14 @@ class Program
             else { log.Info("Assuming running natively."); }
         }
 
-        if (!runningOnBrowser) { UseGUI(args); return; }
+        if (!runningOnBrowser)
+        {
+            Console.Clear();
+            Console.WriteLine($"Running {VRPCGlobalData.appName} version {VRPCGlobalData.appVersion}");
+            Console.WriteLine($"Please don't close the console (this black box) while the GUI is present or while the application is installing/uninstalling.\n");
+            UseGUI(args);
+            return;
+        }
 
         VRPCSettings.CheckIfApplicationDataFolderExists();
         VRPCSettings.CheckSettings();
