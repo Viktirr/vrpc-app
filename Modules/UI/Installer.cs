@@ -118,7 +118,7 @@ namespace VRPC.Packaging
             string roamingAppDataPath = Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData);
             string appNamePath = System.IO.Path.Combine(roamingAppDataPath, VRPCGlobalData.appName);
 
-            string sourceFilePath = System.AppContext.BaseDirectory;
+            string sourceFilePath = AppContext.BaseDirectory;
             string destinationFilePath = System.IO.Path.Combine(appNamePath, "VRPC.exe");
 
             // Create folder

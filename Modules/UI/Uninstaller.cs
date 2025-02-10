@@ -11,6 +11,8 @@ namespace VRPC.Packaging
         Button cancelButton = null!;
         CheckButton checkButton = null!;
 
+        bool removeData;
+
         public UninstallWindow() : base("VRPC Uninstaller")
         {
             SetDefaultSize(800, 400);
@@ -78,6 +80,15 @@ namespace VRPC.Packaging
             uninstallButton.Sensitive = false;
             cancelButton.Sensitive = false;
             checkButton.Visible = false;
+
+            if (checkButton.Active)
+            {
+                removeData = true;
+            }
+            else
+            {
+                removeData = false;
+            }
 
             Thread uninstallThread = new Thread(Uninstall);
             uninstallThread.Start();
@@ -188,7 +199,15 @@ namespace VRPC.Packaging
             {
                 try
                 {
-                    string[] files = Directory.GetFiles(installPath);
+                    string[] files;
+                    if (removeData)
+                    {
+                        files = Directory.GetFiles(installPath, "*", SearchOption.AllDirectories);
+                    }
+                    else
+                    {
+                        files = Directory.GetFiles(installPath);
+                    }
                     Console.WriteLine($"There are {files.Length} files in {installPath}");
 
                     if (files.Length > 300)
@@ -214,7 +233,14 @@ namespace VRPC.Packaging
                             }
                             Console.WriteLine($"File {file} deleted.");
                         }
-                        Directory.Delete(installPath, true);
+                        if (removeData)
+                        {
+                            Directory.Delete(installPath, true);
+                        }
+                        else
+                        {
+                            Directory.Delete(installPath);
+                        }
                         Console.WriteLine("All files and directories have been deleted.");
                     }
                 }
@@ -223,7 +249,6 @@ namespace VRPC.Packaging
                     Console.WriteLine($"An error occurred: {ex.Message}");
                     Application.Invoke(delegate { description.Text = description.Text + $"\n\nAn error occured while trying to delete files. Please delete the files manually, they should be located at {installPath}. You may now close the uninstaller."; });
                     EnableButtons();
-                    return;
                 }
             }
             else
@@ -257,7 +282,6 @@ namespace VRPC.Packaging
                     Console.WriteLine($"Deleted {file}.");
                 }
             }
-
         }
     }
 }
