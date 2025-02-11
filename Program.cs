@@ -4,9 +4,12 @@ using VRPC.NativeMessasing;
 using VRPC.Configuration;
 using VRPC.ListeningDataManager;
 using VRPC.Globals;
+using VRPC.Packaging;
 
 class Program
 {
+    public static bool runningOnBrowser = false;
+
     private static Log log = new Log();
     public static bool isDiscordRPCRunning = false;
     public static bool isReceivingRPCData = false;
@@ -142,8 +145,71 @@ class Program
         ListeningData.Heartbeat(listeningDataCancellationToken, ShutdownRequested);
     }
 
+    static void UseGUI(string[] args)
+    {
+        bool isUninstall = false;
+        bool isUninstallTemp = false;
+
+        string roamingAppDataPath = Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData);
+        string appNamePath = Path.Combine(roamingAppDataPath, VRPCGlobalData.appName);
+
+        string sourceFilePath = AppContext.BaseDirectory;
+
+        if (Directory.Exists(appNamePath) && !appNamePath.Contains(sourceFilePath))
+        {
+            if (File.Exists(Path.Combine(appNamePath, "VRPC.exe")))
+            {
+                isUninstallTemp = true;
+                PackagingGlobals.uninstallString = $"\n\nPLEASE READ\nYou were launched to the uninstaller because the application is already installed. If this is a mistake, delete the folder {appNamePath} and relaunch the installer.\n\nUPDATES:\nIf you're updating to a new version, first select Uninstall below then relaunch the installer.";
+            }
+        }
+
+        foreach (string arg in args)
+        {
+            if (arg == "--uninstall")
+            {
+                isUninstall = true;
+            }
+            if (arg == "--uninstall-temp")
+            {
+                isUninstallTemp = true;
+            }
+        }
+
+        Gtk.Application.Init();
+        if (isUninstall)
+        {
+            CreateUninstaller.CreateUninstall();
+        }
+        else if (isUninstallTemp)
+        {
+            new UninstallWindow();
+        }
+        else
+        {
+            new InstallWindow();
+        }
+        Gtk.Application.Run();
+    }
+
     static void Main(string[] args)
     {
+        if (args.Count() == 0) { log.Info("Assuming running natively."); }
+        else
+        {
+            if (args[0].Contains(".json")) { log.Info("Assuming running from browser."); runningOnBrowser = true; }
+            else { log.Info("Assuming running natively."); }
+        }
+
+        if (!runningOnBrowser)
+        {
+            Console.Clear();
+            Console.WriteLine($"Running {VRPCGlobalData.appName} version {VRPCGlobalData.appVersion}");
+            Console.WriteLine($"Please don't close the console (this black box) while the GUI is present or while the application is installing/uninstalling.\n");
+            UseGUI(args);
+            return;
+        }
+
         VRPCSettings.CheckIfApplicationDataFolderExists();
         VRPCSettings.CheckSettings();
         log.Write("[Main] Reading Settings from file.");
