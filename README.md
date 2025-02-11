@@ -8,12 +8,13 @@ Please note that this project is NOT open source, I allow viewing the code, howe
 The code quality should match the industry standard for newer projects ( /s ).
 
 ## Installation
-I do not have an installation script/program yet, so installation will be manual (for now...)
-Due to the nature of how Native Messaging works in browsers, you are required to modify the registry key to allow the app to work.
+Installation is now one-click! Just run the application and click install. No administration privileges are required.  
+Otherwise, if you feel to manually install the application, feel free to follow the following steps.
 
 ### Application
-- [Download](https://github.com/Viktirr/vrpc-app/releases) the application from the releases tab or build it yourself.
+- [Download](https://github.com/Viktirr/vrpc-app/releases) the (full-zipped version) application from the releases tab or build it yourself.
 - Unzip it
+- Run it (VRPC.exe)
 
 ### Native Messaging Support Installation
 - Open regedit and head over to one of the following locations depending on the browser you use,
@@ -26,11 +27,18 @@ for Firefox, the registry key is:
 ## Building
 Prerequisites:
 - C# .NET 8 (or higher)  
-You may build the application by using:  
+You may build the application by using one of the following:  
 `dotnet build`  
-This builds the debug version of the application and I have only used this so far, you may try using  
-`dotnet build --configuration Release`  
-for a release build, however no major difference will be visible.  
+This builds the debug version of the application.
+  
+`dotnet publish -c Release -r win-x64 --self-contained true /p:PublishSingleFile=false`  
+This builds the release (full-zipped) version of the application. Zipping is done manually.  
+  
+`dotnet publish -c Release -r win-x64 --self-contained true /p:PublishSingleFile=true`  
+This builds the release (single-file application - VRPC.exe) version of the application.  
+  
+`dotnet publish -c Release -r win-x64 --self-contained false /p:PublishSingleFile=false`  
+This builds the release (minimal) version of the application. Zipping is done manually.  
 
 ## Troubleshooting / IT DOESN'T WORK!!
 ### Native Messaging Permissions
@@ -43,7 +51,7 @@ You should create a key with the name of the extension and on the (Default) valu
 
 ### Missing dependencies
 I'm not sure if this is required, however if needed, you may install the  
-[.NET Desktop Runtime](https://dotnet.microsoft.com/en-us/download/dotnet/9.0)
+[.NET Desktop Runtime/.NET SDK](https://dotnet.microsoft.com/en-us/download)
 
 ### Double-check Paths/Directories
 Make sure every directory is rightly listed. If you need to change the directory of the app, I recommend reinstalling it.  
