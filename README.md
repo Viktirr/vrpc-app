@@ -35,9 +35,9 @@ for a release build, however no major difference will be visible.
 ## Troubleshooting / IT DOESN'T WORK!!
 ### Native Messaging Permissions
 Please make sure the script is allowed native messaging permissions from the browser. Check the following registry keys:  
-Firefox: `HKEY_LOCAL_MACHINE\SOFTWARE\Mozilla\NativeMessagingHosts`  
-Chrome: `HKEY_LOCAL_MACHINE\SOFTWARE\Google\Chrome\NativeMessagingHosts`  
-Edge: `HKEY_LOCAL_MACHINE\SOFTWARE\Microsoft\Edge\NativeMessagingHosts`  
+Firefox: `HKEY_CURRENT_USER\SOFTWARE\Mozilla\NativeMessagingHosts`  
+Chrome: `HKEY_CURRENT_USER\SOFTWARE\Google\Chrome\NativeMessagingHosts`  
+Edge: `HKEY_CURRENT_USER\SOFTWARE\Microsoft\Edge\NativeMessagingHosts`  
 If your browser is not listed here, please look online for "NativeMessaging (your browser name here)"  
 You should create a key with the name of the extension and on the (Default) value, select the path to the manifest file available [here](https://github.com/Viktirr/vrpc-app/blob/main/NativeMessagingJson/vrpc.json).  
 
@@ -61,3 +61,4 @@ This project wouldn't have been possible without the following projects/software
 - C# .NET
 - [Discord RPC C#](https://github.com/Lachee/discord-rpc-csharp)
 - Newtonsoft.json
+- GTK#

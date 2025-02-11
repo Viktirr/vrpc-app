@@ -281,7 +281,7 @@ namespace VRPC.Packaging
                     Console.WriteLine($"Creating registry key for Firefox Native Messaging support at {currentKey}");
                     using (RegistryKey key = Registry.CurrentUser.CreateSubKey(currentKey))
                     {
-                        key.SetValue("(Default)", $"{appNamePath}\\vrpc.json");
+                        key.SetValue(null, $"{appNamePath}\\vrpc.json");
                     }
 
                     currentKey = @"Software\Chrome\NativeMessagingHosts\vrpc";
@@ -289,7 +289,7 @@ namespace VRPC.Packaging
                     Console.WriteLine($"Creating registry key for Chrome Native Messaging support at {currentKey}");
                     using (RegistryKey key = Registry.CurrentUser.CreateSubKey(currentKey))
                     {
-                        key.SetValue("(Default)", $"{appNamePath}\\vrpc.json");
+                        key.SetValue(null, $"{appNamePath}\\vrpc.json");
                     }
 
                     currentKey = @"Software\Microsoft\Edge\NativeMessagingHosts\vrpc";
@@ -297,7 +297,7 @@ namespace VRPC.Packaging
                     Console.WriteLine($"Creating registry key for Edge Native Messaging support at {currentKey}");
                     using (RegistryKey key = Registry.CurrentUser.CreateSubKey(currentKey))
                     {
-                        key.SetValue("(Default)", $"{appNamePath}\\vrpc.json");
+                        key.SetValue(null, $"{appNamePath}\\vrpc.json");
                     }
                 }
                 catch
