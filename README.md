@@ -62,7 +62,7 @@ If you installed the application manually, please double check the vrpc.json fil
 Uninstalling and installing the software again may help.
 
 ### Crashes
-It can also be that this is not a problem of user error, so there might be possible crashes from the application. If you encounter such, feel free to create an Issue (I'm not sure if that works, if it doesn't, feel free to contact me via email at viktir@skiff.com instead).
+It can also be that this is not a problem of user error, so there might be possible crashes from the application. If you encounter such, feel free to create an Issue (I'm not sure if that works, if it doesn't, feel free to contact me via email at viktir@uninbox.me instead).
 
 ## Software used
 This project wouldn't have been possible without the following projects/software:  
