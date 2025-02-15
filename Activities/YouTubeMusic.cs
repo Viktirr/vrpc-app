@@ -68,6 +68,7 @@ namespace VRPC.DiscordRPCManager.Activities
             if (VRPCSettings.settingsData.ShowAppWatermark == true) { watermarkString = " | vrpc"; } else { watermarkString = ""; }
             try
             {
+                string tempRichPresenceSmallImageText = richPresence.Assets.SmallImageText;
                 if (songStatus != "Playing" && songStatus != "Paused")
                 {
                     richPresence.Assets.SmallImageKey = "";
@@ -85,6 +86,7 @@ namespace VRPC.DiscordRPCManager.Activities
                     richPresence.Timestamps.Start = DateTime.UtcNow - TimeSpan.FromSeconds(songInSecondsCurrent);
                     richPresence.Timestamps.End = DateTime.UtcNow;
                 }
+                if (songStatus + watermarkString != tempRichPresenceSmallImageText) { DiscordRPCData.forceUpdateDiscordRPC = true; }
             }
             catch { }
         }
@@ -204,6 +206,7 @@ namespace VRPC.DiscordRPCManager.Activities
 
         public static void UpdateRPC()
         {
+            int timestampTolerance = 5;
             string songName = VRPCGlobalData.RPCDataLegacyDictionary.GetValueOrDefault(1, "");
 
             try
@@ -247,13 +250,17 @@ namespace VRPC.DiscordRPCManager.Activities
 
                 if (!string.IsNullOrEmpty(cleanSongName))
                 {
+                    string pastRichPresenceDetails = richPresence.Details;
                     richPresence.Details = cleanSongName;
-                    if (richPresence.Details != cleanSongName) { VRPCGlobalData.MiscellaneousSongData.Clear(); DiscordRPCData.forceUpdateDiscordRPC = true; }
+                    
+                    if (pastRichPresenceDetails != songName) { VRPCGlobalData.MiscellaneousSongData.Clear(); DiscordRPCData.forceUpdateDiscordRPC = true; }
                 }
                 else if (!string.IsNullOrEmpty(songName))
                 {
+                    string pastRichPresenceDetails = richPresence.Details;
                     richPresence.Details = songName;
-                    if (richPresence.Details != songName) { VRPCGlobalData.MiscellaneousSongData.Clear(); DiscordRPCData.forceUpdateDiscordRPC = true; }
+                    
+                    if (pastRichPresenceDetails != songName) { VRPCGlobalData.MiscellaneousSongData.Clear(); DiscordRPCData.forceUpdateDiscordRPC = true; }
                 }
 
                 if (!string.IsNullOrEmpty(artistName))
@@ -267,8 +274,14 @@ namespace VRPC.DiscordRPCManager.Activities
             {
                 if (songDuration[0] != null || songDuration[1] != null)
                 {
+                    DateTime? tempRichPresenceStart = richPresence.Timestamps.Start;
+
                     richPresence.Timestamps.Start = DateTime.UtcNow - TimeSpan.FromSeconds(songInSecondsCurrent);
                     richPresence.Timestamps.End = DateTime.UtcNow + TimeSpan.FromSeconds(songInSeconds - songInSecondsCurrent);
+                    if (tempRichPresenceStart > DateTime.UtcNow - TimeSpan.FromSeconds(songInSecondsCurrent) + TimeSpan.FromSeconds(timestampTolerance) || tempRichPresenceStart < DateTime.UtcNow - TimeSpan.FromSeconds(songInSecondsCurrent) - TimeSpan.FromSeconds(timestampTolerance))
+                    {
+                        DiscordRPCData.forceUpdateDiscordRPC = true;
+                    }
                 }
             }
             catch { log.Write("[YouTube Music] Something went wrong setting timestamps to Rich Presence"); }

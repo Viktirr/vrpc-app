@@ -7,7 +7,7 @@ namespace VRPC.DiscordRPCManager
 {
     public static class DiscordRPCData
     {
-        public static bool forceUpdateDiscordRPC = false;
+        public static bool forceUpdateDiscordRPC;
         public static string currentService = "Default";
         public static RichPresence richPresenceData = new RichPresence() { Details = "---" };
     }
@@ -84,8 +84,8 @@ namespace VRPC.DiscordRPCManager
             }
             client.Initialize();
 
-            const int checkDelay = 1000;
-            const int attemptsPerFileChecks = 5;
+            const int checkDelay = 500;
+            const float secondsPerCheck = 60 * (1000 / checkDelay);
 
             try
             {
@@ -98,10 +98,11 @@ namespace VRPC.DiscordRPCManager
                         if (pastRichPresenceDetailsData != richPresence.Details) { log.Info($"[DiscordRPC] Discord Rich Presence updated. Now {richPresence.Type} {richPresence.Details} by {richPresence.State}."); }
                         pastRichPresenceDetailsData = richPresence.Details;
 
-                        for (int i = 0; i < attemptsPerFileChecks; i++)
+                        for (int i = 0; i < secondsPerCheck; i++)
                         {
-                            if (DiscordRPCData.forceUpdateDiscordRPC == true) { DiscordRPCData.forceUpdateDiscordRPC = false; break; }
                             Thread.Sleep(checkDelay);
+                        
+                            if (DiscordRPCData.forceUpdateDiscordRPC == true) { DiscordRPCData.forceUpdateDiscordRPC = false; break; }
                         }
                     }
                     return;

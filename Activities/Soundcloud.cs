@@ -32,6 +32,9 @@ namespace VRPC.DiscordRPCManager.Activities
         {
             string watermarkString = "";
             if (VRPCSettings.settingsData.ShowAppWatermark == true) { watermarkString = " | vrpc"; } else { watermarkString = ""; }
+
+                string tempRichPresenceSmallImageText = richPresence.Assets.SmallImageText;
+
             if (songStatus != "Playing" && songStatus != "Paused")
             {
                 richPresence.Assets.SmallImageKey = "";
@@ -53,6 +56,7 @@ namespace VRPC.DiscordRPCManager.Activities
                 }
                 richPresence.Timestamps.End = DateTime.UtcNow;
             }
+            if (songStatus + watermarkString != tempRichPresenceSmallImageText) { DiscordRPCData.forceUpdateDiscordRPC = true; }
         }
 
         private static void UpdateButton(string? songUrl)
@@ -73,6 +77,7 @@ namespace VRPC.DiscordRPCManager.Activities
 
         public static void UpdateRPC()
         {
+            int timestampTolerance = 5;
             Log log = new Log();
 
             string songName = VRPCGlobalData.RPCDataLegacyDictionary.GetValueOrDefault(1, "");
@@ -91,17 +96,20 @@ namespace VRPC.DiscordRPCManager.Activities
                 richPresence.Assets.LargeImageText = "Soundcloud";
                 return;
             }
-            
+
             string cleanSongName = VRPCGlobalFunctions.RemoveArtistFromTitle(songName, artistName);
 
             if (!string.IsNullOrEmpty(cleanSongName))
             {
+                string pastRichPresenceDetails = richPresence.Details;
                 richPresence.Details = cleanSongName;
-                if (richPresence.Details != cleanSongName) { VRPCGlobalData.MiscellaneousSongData.Clear(); DiscordRPCData.forceUpdateDiscordRPC = true; }
-            } else if (!string.IsNullOrEmpty(songName))
+                if (pastRichPresenceDetails != cleanSongName) { VRPCGlobalData.MiscellaneousSongData.Clear(); DiscordRPCData.forceUpdateDiscordRPC = true; }
+            }
+            else if (!string.IsNullOrEmpty(songName))
             {
+                string pastRichPresenceDetails = richPresence.Details;
                 richPresence.Details = songName;
-                if (richPresence.Details != songName) { VRPCGlobalData.MiscellaneousSongData.Clear(); DiscordRPCData.forceUpdateDiscordRPC = true; }
+                if (pastRichPresenceDetails != cleanSongName) { VRPCGlobalData.MiscellaneousSongData.Clear(); DiscordRPCData.forceUpdateDiscordRPC = true; }
             }
 
             if (!string.IsNullOrEmpty(artistName))
@@ -109,8 +117,13 @@ namespace VRPC.DiscordRPCManager.Activities
                 richPresence.State = artistName;
             }
 
+            DateTime? tempRichPresenceStart = richPresence.Timestamps.Start;
             richPresence.Timestamps.Start = DateTime.UtcNow - TimeSpan.FromSeconds(currentTime);
             richPresence.Timestamps.End = DateTime.UtcNow + TimeSpan.FromSeconds(totalTime - currentTime);
+            if (tempRichPresenceStart > DateTime.UtcNow - TimeSpan.FromSeconds(currentTime) + TimeSpan.FromSeconds(timestampTolerance) || tempRichPresenceStart < DateTime.UtcNow - TimeSpan.FromSeconds(currentTime) - TimeSpan.FromSeconds(timestampTolerance))
+            {
+                DiscordRPCData.forceUpdateDiscordRPC = true;
+            }
 
             UpdateListeningData(songName, artistName, songStatus);
             UpdateStatus(songStatus, currentTime);

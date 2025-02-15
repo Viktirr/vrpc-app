@@ -133,7 +133,7 @@ class Program
                 messageContent = receivedMessage.Substring(receivedMessage.IndexOf("\n") + 1);
             }
 
-            log.Write($"Received {receivedMessage}");
+            // log.Write($"[Main] Received {receivedMessage}");
 
             if (messageType == "RPC:") { NativeMessaging.UpdateRPCDataLegacy(messageContent); }
             if (messageType == "STATUS:") { StatusUpdate(messageContent); }
