@@ -80,7 +80,7 @@ class Program
         {
             log.Info("[Main] Attempting to start Discord RPC");
             isDiscordRPCRunning = true;
-            discordRPC.Start(token);
+            discordRPC.Start();
             while (!token.IsCancellationRequested)
             {
                 Thread.Sleep(500);

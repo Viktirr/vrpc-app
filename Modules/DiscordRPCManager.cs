@@ -27,8 +27,6 @@ namespace VRPC.DiscordRPCManager
             ["Default"] = "1257441643691380828"
         };
 
-        private string pastRichPresenceDetailsData = "";
-
         public void Init(string service)
         {
             try
@@ -75,7 +73,7 @@ namespace VRPC.DiscordRPCManager
             SetDiscordActivity.UpdateActivity();
         }
 
-        public void Start(CancellationToken token)
+        public void Start()
         {
             if (client == null)
             {
@@ -84,35 +82,18 @@ namespace VRPC.DiscordRPCManager
             }
             client.Initialize();
 
-            const int checkDelay = 500;
-            const float secondsPerCheck = 60 * (1000 / checkDelay);
-
-            try
+            VRPCGlobalEvents.RPForceUpdate += (sender, e) =>
             {
-                while (true)
+                try
                 {
-                    while (!token.IsCancellationRequested)
-                    {
-                        client.SetPresence(richPresence);
-
-                        if (pastRichPresenceDetailsData != richPresence.Details) { log.Info($"[DiscordRPC] Discord Rich Presence updated. Now {richPresence.Type} {richPresence.Details} by {richPresence.State}."); }
-                        pastRichPresenceDetailsData = richPresence.Details;
-
-                        for (int i = 0; i < secondsPerCheck; i++)
-                        {
-                            Thread.Sleep(checkDelay);
-                        
-                            if (DiscordRPCData.forceUpdateDiscordRPC == true) { DiscordRPCData.forceUpdateDiscordRPC = false; break; }
-                        }
-                    }
-                    return;
+                    client.SetPresence(richPresence);
+                    log.Info($"[DiscordRPC] Discord Rich Presence forcibly updated. Now {richPresence.Type} {richPresence.Details} by {richPresence.State}");
                 }
-            }
-            catch (Exception e)
-            {
-                log.Error($"[DiscordRPC] Error in Start loop for Discord RPC: {e.Message + e.StackTrace}");
-                Dispose();
-            }
+                catch (Exception ex)
+                {
+                    log.Error($"[DiscordRPC] Couldn't forcibly update rich presence: {ex.Message}");
+                }
+            };
         }
 
         public void Dispose()

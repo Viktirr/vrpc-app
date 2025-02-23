@@ -1,4 +1,6 @@
+using System.Net.NetworkInformation;
 using System.Text.RegularExpressions;
+using VRPC.Logging;
 
 namespace VRPC.Globals
 {
@@ -8,7 +10,7 @@ namespace VRPC.Globals
         public static Dictionary<int, string> RPCDataLegacyDictionary = new Dictionary<int, string>();
         public static string? RPCDataLegacyString;
 
-        public static string appVersion = "0.711";
+        public static string appVersion = "0.71.2";
         public static string appName = "VRPCApp";
         public static string exeName = "VRPC.exe";
 
@@ -153,6 +155,27 @@ namespace VRPC.Globals
         public static void SendRichPresenceEvent()
         {
             RPCEvent?.Invoke(RPCEvent, EventArgs.Empty);
+        }
+
+        public static event EventHandler? RPForceUpdate;
+
+        public static void SendForceUpdateRPEvent(int delay = 0)
+        {
+            if (delay == 0)
+            {
+                RPForceUpdate?.Invoke(RPForceUpdate, EventArgs.Empty);
+            }
+            else
+            {
+                Log log = new Log();
+                
+                Thread t = new Thread(() => 
+                {
+                    Thread.Sleep(delay);
+                    RPForceUpdate?.Invoke(RPForceUpdate, EventArgs.Empty);
+                });
+                t.Start();
+            }
         }
     }
 }
