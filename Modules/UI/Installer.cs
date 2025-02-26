@@ -23,6 +23,25 @@ namespace VRPC.Packaging
             allowed_extensions = new string[] { "vrpc@viktir.com" };
         }
     }
+
+    public class ManifestFileDataChrome
+    {
+        public string name { get; set; }
+        public string description { get; set; }
+        public string path { get; set; }
+        public string type { get; set; }
+        public string[] allowed_origins { get; set; }
+
+        public ManifestFileDataChrome(string _path)
+        {
+            name = "vrpc";
+            description = "Transfers Rich Presence data to Discord and saves Listening Data locally.";
+            path = _path;
+            type = "stdio";
+            allowed_origins = new string[] { "chrome-extension://gljfghkgmekheeiannlgjlhoiodmfgkm/" };
+        }
+    }
+
     public class InstallWindow : Window
     {
 
@@ -241,10 +260,15 @@ namespace VRPC.Packaging
             Console.WriteLine($"Creating manifest file at {appNamePath}");
 
             ManifestFileData manifestFileData = new ManifestFileData($"{appNamePath}\\VRPC.exe");
+            ManifestFileDataChrome manifestFileDataChrome = new ManifestFileDataChrome($"{appNamePath}\\VRPC.exe");
 
             string manifestFileDataJson = JsonConvert.SerializeObject(manifestFileData, Formatting.Indented);
             File.WriteAllText(System.IO.Path.Combine(appNamePath, "vrpc.json"), manifestFileDataJson);
             Console.WriteLine($"Manifest file {System.IO.Path.Combine(appNamePath, "vrpc.json")} created.");
+
+            string manifestFileDataChromeJson = JsonConvert.SerializeObject(manifestFileDataChrome, Formatting.Indented);
+            File.WriteAllText(System.IO.Path.Combine(appNamePath, "vrpc-chrome.json"), manifestFileDataChromeJson);
+            Console.WriteLine($"Manifest file {System.IO.Path.Combine(appNamePath, "vrpc-chrome.json")} created.");
 
             // Create registry
             if (System.Runtime.InteropServices.RuntimeInformation.IsOSPlatform(System.Runtime.InteropServices.OSPlatform.Windows))
@@ -274,6 +298,7 @@ namespace VRPC.Packaging
                     {
                         key.SetValue("InstallPath", $"{appNamePath}");
                         key.SetValue("ManifestPath", $"{appNamePath}\\vrpc.json");
+                        key.SetValue("ManifestChromePath", $"{appNamePath}\\vrpc-chrome.json");
                     }
 
                     currentKey = @"Software\Mozilla\NativeMessagingHosts\vrpc";
@@ -284,12 +309,12 @@ namespace VRPC.Packaging
                         key.SetValue(null, $"{appNamePath}\\vrpc.json");
                     }
 
-                    currentKey = @"Software\Chrome\NativeMessagingHosts\vrpc";
+                    currentKey = @"Software\Google\Chrome\NativeMessagingHosts\vrpc";
                     Application.Invoke(delegate { description.Text = description.Text + $"\nCreating registry keys for Chrome Native Messaging support at {currentKey}"; });
                     Console.WriteLine($"Creating registry key for Chrome Native Messaging support at {currentKey}");
                     using (RegistryKey key = Registry.CurrentUser.CreateSubKey(currentKey))
                     {
-                        key.SetValue(null, $"{appNamePath}\\vrpc.json");
+                        key.SetValue(null, $"{appNamePath}\\vrpc-chrome.json");
                     }
 
                     currentKey = @"Software\Microsoft\Edge\NativeMessagingHosts\vrpc";
@@ -297,7 +322,7 @@ namespace VRPC.Packaging
                     Console.WriteLine($"Creating registry key for Edge Native Messaging support at {currentKey}");
                     using (RegistryKey key = Registry.CurrentUser.CreateSubKey(currentKey))
                     {
-                        key.SetValue(null, $"{appNamePath}\\vrpc.json");
+                        key.SetValue(null, $"{appNamePath}\\vrpc-chrome.json");
                     }
                 }
                 catch

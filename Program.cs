@@ -194,10 +194,15 @@ class Program
 
     static void Main(string[] args)
     {
+        foreach (string arg in args)
+        {
+            log.Info(arg);
+        }
         if (args.Count() == 0) { log.Info("Assuming running natively."); }
         else
         {
-            if (args[0].Contains(".json")) { log.Info("Assuming running from browser."); runningOnBrowser = true; }
+            if (args[0].Contains("chrome-extension")) { log.Info("Assuming running from browser."); runningOnBrowser = true; }
+            else if (args[0].Contains(".json")) { log.Info("Assuming running from browser."); runningOnBrowser = true; }
             else { log.Info("Assuming running natively."); }
         }
 
