@@ -38,7 +38,7 @@ namespace VRPC.Packaging
             description = "Transfers Rich Presence data to Discord and saves Listening Data locally.";
             path = _path;
             type = "stdio";
-            allowed_origins = new string[] { "chrome-extension://gljfghkgmekheeiannlgjlhoiodmfgkm/" };
+            allowed_origins = new string[] { "chrome-extension://dmfcnhgakihhigbkpefjgjkbbnkjagpb/" };
         }
     }
 
