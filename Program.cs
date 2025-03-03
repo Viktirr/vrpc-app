@@ -176,20 +176,20 @@ class Program
             }
         }
 
-        Gtk.Application.Init();
         if (isUninstall)
         {
             CreateUninstaller.CreateUninstall();
         }
         else if (isUninstallTemp)
         {
-            new UninstallWindow();
+            UninstallWindow uw = new UninstallWindow();
+            uw.Uninstall();
         }
         else
         {
-            new InstallWindow();
+            InstallWindow iw = new InstallWindow();
+            iw.Install();
         }
-        Gtk.Application.Run();
     }
 
     static void Main(string[] args)

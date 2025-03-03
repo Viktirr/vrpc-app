@@ -1,5 +1,3 @@
-using System.Runtime.CompilerServices;
-using Gtk;
 using Microsoft.Win32;
 using Newtonsoft.Json;
 using VRPC.Globals;
@@ -42,93 +40,25 @@ namespace VRPC.Packaging
         }
     }
 
-    public class InstallWindow : Window
+    public class InstallWindow
     {
-
-        Button installButton;
-        Button cancelButton;
-
-        Label description;
-
-        public InstallWindow() : base("VRPC Installer")
-        {
-            SetDefaultSize(800, 400);
-            Resizable = false;
-            DeleteEvent += (o, args) => Application.Quit();
-
-            var mainBox = new Box(Orientation.Vertical, 0);
-            Add(mainBox);
-
-            var header = new Label("<span size='x-large' weight='bold'>VRPC Installer</span>");
-            header.UseMarkup = true;
-            mainBox.PackStart(header, false, false, 20);
-
-            description = new Label("VPRC is an application that allows communication between the extension and client to provide Rich Presence data to Discord alongside other features.\n\nBy clicking Install below, you agree to the License, Terms of Use and Privacy Policy of this application listed over at https://viktir.com/vrpc\n\nIf you do not agree with any of the previous notices, refrain from installing this software by clicking the Cancel button or exiting the program.\n\nBy selecting install the following will occur:\nThe files for this application will extract at %appdata%\\VRPCApp\nA few registry keys will be created to allow for Native Messaging permissions to work with the extension and to create an entry for uninstalling the application in the Settings app.")
-            {
-                LineWrap = true,
-                Justify = Justification.Center
-            };
-            mainBox.PackStart(description, false, false, 20);
-
-            var buttonBox = new Box(Orientation.Horizontal, 10)
-            {
-                BorderWidth = 20
-            };
-            mainBox.PackEnd(buttonBox, false, true, 0);
-
-            buttonBox.PackStart(new Label(), true, true, 0);
-
-            installButton = new Button("Install") { Name = "mainButtons" };
-            cancelButton = new Button("Cancel") { Name = "altButtons" };
-            buttonBox.PackStart(installButton, false, false, 0);
-            buttonBox.PackStart(cancelButton, false, false, 0);
-
-            KeyPressEvent += (o, args) =>
-            {
-                if (args.Event.Key == Gdk.Key.r)
-                {
-                    Destroy();
-                    new InstallWindow().ShowAll();
-                }
-            };
-
-            installButton.Clicked += OnInstallButtonClicked;
-            cancelButton.Clicked += (o, args) => Application.Quit();
-
-            var cssProvider = new CssProvider();
-            cssProvider.LoadFromData(PackagingGlobals.cssString);
-            StyleContext.AddProviderForScreen(
-                Gdk.Screen.Default,
-                cssProvider,
-                StyleProviderPriority.Application
-            );
-
-            ShowAll();
-        }
-
-        public void OnInstallButtonClicked(object? sender, EventArgs e)
-        {
-            description.Text = "Installing...";
-            installButton.Sensitive = false;
-            cancelButton.Sensitive = false;
-
-            Thread installThread = new Thread(Install);
-            installThread.Start();
-        }
-
-        public void EnableButtons()
-        {
-            Application.Invoke(delegate
-            {
-                installButton.Visible = false;
-                cancelButton.Name = "mainButtons";
-                cancelButton.Label = "Close";
-                cancelButton.Sensitive = true;
-            });
-        }
-
         public void Install()
         {
+            Console.WriteLine("VPRC is an application that allows communication between the extension and client to provide Rich Presence data to Discord alongside other features.\n\nBy clicking Install below, you agree to the License, Terms of Use and Privacy Policy of this application listed over at https://viktir.com/vrpc\n\nIf you do not agree with any of the previous notices, refrain from installing this software by clicking the Cancel button or exiting the program.\n\nBy selecting install the following will occur:\nThe files for this application will extract at %appdata%\\VRPCApp\nA few registry keys will be created to allow for Native Messaging permissions to work with the extension and to create an entry for uninstalling the application in the Settings app.");
+
+            Console.Write("Proceed with installation? [N/y]: ");
+            string? userInput = Console.ReadLine();
+            if (userInput != null)
+            {
+                userInput = userInput.ToLower();
+            }
+
+            if (!(userInput == "y" || userInput == "yes" || userInput == "install"))
+            {
+                Console.WriteLine("User likely denied install. Exiting.");
+                Environment.Exit(0);
+            }
+
             Console.WriteLine("User started installation.");
 
             Thread.Sleep(200);
@@ -141,7 +71,6 @@ namespace VRPC.Packaging
             string destinationFilePath = System.IO.Path.Combine(appNamePath, "VRPC.exe");
 
             // Create folder
-            Application.Invoke(delegate { description.Text = description.Text + $"\nCreating folder {appNamePath}"; });
             Console.WriteLine($"Creating folder {appNamePath}");
 
             try
@@ -154,14 +83,14 @@ namespace VRPC.Packaging
             }
             catch
             {
-                Application.Invoke(delegate { description.Text = description.Text + $"\n\nError: Couldn't create folder. Installation cannot proceed. Check your available storage space. Press close to exit."; });
-                Console.WriteLine($"Error: Couldn't create folder {appNamePath}.");
-                EnableButtons();
+                Console.WriteLine($"Error: Couldn't create folder {appNamePath}. Installation cannot proceed. Check your available storage space. Press close to exit.");
+                Console.WriteLine($"Press any key to exit.");
+                Console.ReadLine();
+                Environment.Exit(1);
                 return;
             }
 
             // Check storage requirements
-            Application.Invoke(delegate { description.Text = description.Text + "\nChecking available free space."; });
             Console.WriteLine($"Checking available free space...");
             try
             {
@@ -169,9 +98,10 @@ namespace VRPC.Packaging
                 Console.WriteLine($"Checking {rootPath} for free space...");
                 if (rootPath == null)
                 {
-                    Application.Invoke(delegate { description.Text = description.Text + "\n\nUnable to determine the root path to check storage space. Check your available storage space. Press close to exit."; });
-                    Console.WriteLine($"Unable to determine {rootPath} to determine free space.");
-                    EnableButtons();
+                    Console.WriteLine($"Unable to determine the root path (attempt: {rootPath}) to determine free space. Check your available storage space.");
+                    Console.WriteLine($"Press any key to exit.");
+                    Console.ReadLine();
+                    Environment.Exit(1);
                     return;
                 }
 
@@ -184,32 +114,34 @@ namespace VRPC.Packaging
 
                     if (availableFreeSpace < installSpace)
                     {
-                        Application.Invoke(delegate { description.Text = description.Text + "\n\nNot enough free space found. Please free up some storage and try again. No changes were done. Press close to exit."; });
-                        Console.WriteLine($"Error: Not enough free space..");
-                        EnableButtons();
+                        Console.WriteLine($"Error: Not enough free space. Please free up some storage and try again. No changes were done.");
+                        Console.WriteLine($"Press any key to exit.");
+                        Console.ReadLine();
+                        Environment.Exit(1);
                         return;
                     }
                 }
             }
             catch
             {
-                Application.Invoke(delegate { description.Text = description.Text + "\n\nError: Couldn't check storage space. Installation cannot proceed. Press close to exit."; });
-                Console.WriteLine($"Error: Couldn't check storage space. Aborting.");
-                EnableButtons();
+                Console.WriteLine($"Error: Couldn't check storage space. Installation cannot proceed. Aborting.");
+                Console.WriteLine($"Press any key to exit.");
+                Console.ReadLine();
+                Environment.Exit(1);
                 return;
             }
 
             // Check directory of program - Checks if there are more files than the installer should ever have and if the file sizes are greater than the installer should have.
-            Application.Invoke(delegate { description.Text = description.Text + $"\nChecking {sourceFilePath}..."; });
             Console.WriteLine($"Initialising check from the installer {sourceFilePath}");
             string[] filesInDirectory = Directory.GetFiles(sourceFilePath);
 
             int maxFilesInDirectory = 270;
             if (filesInDirectory.Length > maxFilesInDirectory)
             {
-                Application.Invoke(delegate { description.Text = description.Text + $"\n\nSomething seems off... If not already extract the installer into a separate directory. Aborting..."; });
                 Console.WriteLine($"There are more files than there should be ({filesInDirectory.Length}/{maxFilesInDirectory}) in the installer directory. Aborting.");
-                EnableButtons();
+                Console.WriteLine($"Press any key to exit.");
+                Console.ReadLine();
+                Environment.Exit(1);
                 return;
             }
 
@@ -223,17 +155,17 @@ namespace VRPC.Packaging
 
                     if (fileInfo.Length > 20 * 1024 * 1024 || totalSize > 150 * 1024 * 1024)
                     {
-                        Application.Invoke(delegate { description.Text = description.Text + $"\n\nSomething seems off... If not already extract the installer into a separate directory. Aborting..."; });
-                        Console.WriteLine($"One of the files is larger than 20 MiB or the total amount of files exceed 150 MiB, assuming these are not the files from the program. Aborting.");
-                        EnableButtons();
+                        Console.WriteLine($"One of the files is larger than 20 MiB or the total amount of files exceed 150 MiB, assuming these are not the files from the program. If you didn't do so already, extract the files to a folder. Aborting.");
+                        Console.WriteLine($"Press any key to exit.");
+                        Console.ReadLine();
+                        Environment.Exit(1);
                         return;
                     }
                 }
             }
 
             // Copy program to Application Data
-            Application.Invoke(delegate { description.Text = description.Text + $"\nCopying {sourceFilePath} to {destinationFilePath}"; });
-            Console.WriteLine($"Initialising file copy");
+            Console.WriteLine($"Initialising file copy from {sourceFilePath} to {destinationFilePath}.");
 
             try
             {
@@ -249,14 +181,14 @@ namespace VRPC.Packaging
             }
             catch
             {
-                Application.Invoke(delegate { description.Text = description.Text + "\n\nError: Couldn't copy file. Installation cannot proceed. Press close to exit."; });
                 Console.WriteLine($"Error: Couldn't copy file. Aborting.");
-                EnableButtons();
+                Console.WriteLine($"Press any key to exit.");
+                Console.ReadLine();
+                Environment.Exit(1);
                 return;
             }
 
             // Create manifest file
-            Application.Invoke(delegate { description.Text = description.Text + $"\nCreating manifest file at {appNamePath}"; });
             Console.WriteLine($"Creating manifest file at {appNamePath}");
 
             ManifestFileData manifestFileData = new ManifestFileData($"{appNamePath}\\VRPC.exe");
@@ -277,7 +209,6 @@ namespace VRPC.Packaging
                 try
                 {
                     string currentKey = @"Software\Microsoft\Windows\CurrentVersion\Uninstall\VRPCApp";
-                    Application.Invoke(delegate { description.Text = description.Text + $"\nCreating uninstallation registry keys at {currentKey}"; });
                     Console.WriteLine($"Creating registry key for uninstallation at {currentKey}");
                     using (RegistryKey key = Registry.CurrentUser.CreateSubKey(currentKey))
                     {
@@ -292,7 +223,6 @@ namespace VRPC.Packaging
                     }
 
                     currentKey = @"Software\Viktir\vrpc";
-                    Application.Invoke(delegate { description.Text = description.Text + $"\nCreating registry keys for the application at {currentKey}"; });
                     Console.WriteLine($"Creating registry key for the application at {currentKey}");
                     using (RegistryKey key = Registry.CurrentUser.CreateSubKey(currentKey))
                     {
@@ -302,7 +232,6 @@ namespace VRPC.Packaging
                     }
 
                     currentKey = @"Software\Mozilla\NativeMessagingHosts\vrpc";
-                    Application.Invoke(delegate { description.Text = description.Text + $"\nCreating registry keys for Firefox Native Messaging support at {currentKey}"; });
                     Console.WriteLine($"Creating registry key for Firefox Native Messaging support at {currentKey}");
                     using (RegistryKey key = Registry.CurrentUser.CreateSubKey(currentKey))
                     {
@@ -310,7 +239,6 @@ namespace VRPC.Packaging
                     }
 
                     currentKey = @"Software\Google\Chrome\NativeMessagingHosts\vrpc";
-                    Application.Invoke(delegate { description.Text = description.Text + $"\nCreating registry keys for Chrome Native Messaging support at {currentKey}"; });
                     Console.WriteLine($"Creating registry key for Chrome Native Messaging support at {currentKey}");
                     using (RegistryKey key = Registry.CurrentUser.CreateSubKey(currentKey))
                     {
@@ -318,7 +246,6 @@ namespace VRPC.Packaging
                     }
 
                     currentKey = @"Software\Microsoft\Edge\NativeMessagingHosts\vrpc";
-                    Application.Invoke(delegate { description.Text = description.Text + $"\nCreating registry keys for Edge Native Messaging support at {currentKey}"; });
                     Console.WriteLine($"Creating registry key for Edge Native Messaging support at {currentKey}");
                     using (RegistryKey key = Registry.CurrentUser.CreateSubKey(currentKey))
                     {
@@ -327,15 +254,15 @@ namespace VRPC.Packaging
                 }
                 catch
                 {
-                    Application.Invoke(delegate { description.Text = description.Text + "\n\nError: Couldn't create registry keys for the application & Native Messaging support. Installation cannot proceed. Press close to exit."; });
-                    Console.WriteLine($"Creating registry keys failed. Aborting.");
-                    EnableButtons();
+                    Console.WriteLine($"Error: Couldn't create registry keys for the application & Native Messaging support. Installation cannot proceed. Aborting.");
+                    Console.WriteLine($"Press any key to exit.");
+                    Console.ReadLine();
+                    Environment.Exit(1);
                     return;
                 }
             }
-            Application.Invoke(delegate { description.Text = description.Text + $"\n\nInstalled. You may now close the installer."; });
-            Console.WriteLine($"The application is now installed.");
-            EnableButtons();
+            Console.WriteLine($"The application is now installed. Press any key to exit.");
+            Console.ReadLine();
         }
     }
 }
