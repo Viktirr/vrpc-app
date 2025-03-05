@@ -28,7 +28,7 @@ namespace VRPC.DiscordRPCManager.Activities
             if (albumName == null || releaseYear == null) { return true; }
             try
             {
-                if (albumName.Contains("views") && releaseYear.Contains("likes"))
+                if (albumName.Contains("view") && releaseYear.Contains("like"))
                 {
                     return true;
                 }
@@ -166,11 +166,11 @@ namespace VRPC.DiscordRPCManager.Activities
                 }
                 else if (IsNull(albumName))
                 {
-                    richPresence.Assets.LargeImageText = $"Released {releaseYear}";
+                    richPresence.Assets.LargeImageText = $"{releaseYear}";
                 }
                 else
                 {
-                    richPresence.Assets.LargeImageText = $"{albumName} | Released {releaseYear}";
+                    richPresence.Assets.LargeImageText = $"{albumName} | {releaseYear}";
                 }
             }
             catch { log.Write("[YouTube Music] Something went wrong updating album to Rich Presence."); }
