@@ -252,13 +252,6 @@ namespace VRPC.ListeningDataManager
             PreviousArtistName = ArtistName;
         }
 
-        public static void UpdateListeningDataRPC()
-        {
-            if (VRPCSettings.settingsData.ShowcaseDataToRPC == false) { return; }
-
-            ListeningDataRPC.UpdateRPC();
-        }
-
         public static void Heartbeat(CancellationToken token, bool ShutdownRequested = false)
         {
             bool SavingEnabled = true;
@@ -268,8 +261,6 @@ namespace VRPC.ListeningDataManager
                 while (!token.IsCancellationRequested)
                 {
                     Thread.Sleep(1000);
-
-                    UpdateListeningDataRPC();
 
                     if (string.IsNullOrEmpty(SongName) || string.IsNullOrEmpty(ArtistName)) { continue; }
                     if (SongPlaying && ((DateTime.UtcNow - LastDataUpdate) < TimeSpan.FromSeconds(6)))

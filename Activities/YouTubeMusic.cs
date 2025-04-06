@@ -155,7 +155,11 @@ namespace VRPC.DiscordRPCManager.Activities
         {
             try
             {
-                if (IsNull(albumName) && IsNull(releaseYear) || isVideo == true)
+                if (VRPCSettings.settingsData.ShowcaseDataToRPC == true)
+                {
+                    ListeningDataRPC.ShowcaseTimeListened();
+                }
+                else if (IsNull(albumName) && IsNull(releaseYear) || isVideo == true)
                 {
                     richPresence.Assets.LargeImageText = "Listening on YouTube Music";
                 }
