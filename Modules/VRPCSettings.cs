@@ -40,6 +40,14 @@ namespace VRPC.Configuration
             //     "Type": "bool"
             // }
 
+            public static Dictionary<string, string> CategoryLogging { get; } = new Dictionary<string, string> {
+                { "InternalName", "CategoryLogging" },
+                { "DisplayName", "Logging" },
+                { "Description", "" },
+                { "Visibility", "Hidden" },
+                { "Type", "category" }
+            };
+
             public static Dictionary<string, string> LoggingWriteEnabled { get; } = new Dictionary<string, string> {
                 { "InternalName", "LoggingWriteEnabled" },
                 { "DisplayName", "Logging Write Enabled" },
@@ -56,18 +64,18 @@ namespace VRPC.Configuration
                 { "Type", "bool" }
             };
 
+            public static Dictionary<string, string> CategoryRichPresence { get; } = new Dictionary<string, string> {
+                { "InternalName", "CategoryRichPresence" },
+                { "DisplayName", "Discord Rich Presence" },
+                { "Description", "" },
+                { "Visibility", "Shown" },
+                { "Type", "category" }
+            };
+
             public static Dictionary<string, string> EnableDiscordRPC { get; } = new Dictionary<string, string> {
                 { "InternalName", "EnableDiscordRPC" },
                 { "DisplayName", "Enable Discord RPC" },
                 { "Description", "Show 'Listening to' status on your Discord profile" },
-                { "Visibility", "Shown" },
-                { "Type", "bool" }
-            };
-
-            public static Dictionary<string, string> EnableListeningData { get; } = new Dictionary<string, string> {
-                { "InternalName", "EnableListeningData" },
-                { "DisplayName", "Enable Listening Data" },
-                { "Description", "Saves the time you listened to music locally, see About section for more information" },
                 { "Visibility", "Shown" },
                 { "Type", "bool" }
             };
@@ -96,26 +104,88 @@ namespace VRPC.Configuration
                 { "Type", "bool" }  
             };
 
+            public static Dictionary<string, string> CategoryListeningData { get; } = new Dictionary<string, string> {
+                { "InternalName", "CategoryListeningData" },
+                { "DisplayName", "Listening Data" },
+                { "Description", "" },
+                { "Visibility", "Shown" },
+                { "Type", "category" }
+            };
+
+            public static Dictionary<string, string> EnableListeningData { get; } = new Dictionary<string, string> {
+                { "InternalName", "EnableListeningData" },
+                { "DisplayName", "Enable Listening Data" },
+                { "Description", "Saves the time you listened to music locally, see About section for more information" },
+                { "Visibility", "Shown" },
+                { "Type", "bool" }
+            };
+
+            public static Dictionary<string, string> CategoryYouTubeMusic { get; } = new Dictionary<string, string> {
+                { "InternalName", "CategoryYouTubeMusic" },
+                { "DisplayName", "YouTube Music" },
+                { "Description", "" },
+                { "Visibility", "Shown" },
+                { "Type", "category" }
+            };
+
+            public static Dictionary<string, string> EnableYouTubeMusic { get; } = new Dictionary<string, string> {
+                { "InternalName", "EnableYouTubeMusic" },
+                { "DisplayName", "Enable YouTube Music Detection" },
+                { "Description", "Should the app detect YouTube Music?" },
+                { "Visibility", "Shown" },
+                { "Type", "bool" }  
+            };
+
+            public static Dictionary<string, string> CategorySoundcloud { get; } = new Dictionary<string, string> {
+                { "InternalName", "CategorySoundcloud" },
+                { "DisplayName", "Soundcloud" },
+                { "Description", "" },
+                { "Visibility", "Shown" },
+                { "Type", "category" }
+            };
+
+            public static Dictionary<string, string> EnableSoundcloud { get; } = new Dictionary<string, string> {
+                { "InternalName", "EnableSoundcloud" },
+                { "DisplayName", "Enable Soundcloud Detection" },
+                { "Description", "Should the app detect Soundcloud?" },
+                { "Visibility", "Shown" },
+                { "Type", "bool" }  
+            };
+
             public static Dictionary<string, object> SettingsDictionary = new Dictionary<string, object> {
+                { "CategoryLogging", CategoryLogging },
                 { "LoggingWriteEnabled", LoggingWriteEnabled },
                 { "DisableClearingLogs", DisableClearingLogs },
+                { "CategoryRichPresence", CategoryRichPresence },
                 { "EnableDiscordRPC", EnableDiscordRPC },
                 { "EnableListeningToButton", EnableListeningToButton },
-                { "EnableListeningData", EnableListeningData },
                 { "ShowcaseDataToRPC", ShowcaseDataToRPC },
-                { "ShowAppWatermark", ShowAppWatermark }
+                { "ShowAppWatermark", ShowAppWatermark },
+                { "CategoryListeningData", CategoryListeningData },
+                { "EnableListeningData", EnableListeningData },
+                { "CategoryYouTubeMusic", CategoryYouTubeMusic },
+                { "EnableYouTubeMusic", EnableYouTubeMusic },
+                { "CategorySoundcloud", CategorySoundcloud },
+                { "EnableSoundcloud", EnableSoundcloud }
             };
         }
 
         public class SettingsData
         {
+            public bool CategoryLogging { get; set; } = true;
             public bool LoggingWriteEnabled { get; set; } = false;
             public bool DisableClearingLogs { get; set; } = false;
+            public bool CategoryRichPresence { get; set; } = true;
             public bool EnableDiscordRPC { get; set; } = true;
             public bool EnableListeningToButton { get; set; } = true;
-            public bool EnableListeningData { get; set; } = true;
             public bool ShowcaseDataToRPC { get; set; } = false;
             public bool ShowAppWatermark { get; set; } = false;
+            public bool CategoryListeningData { get; set; } = true;
+            public bool EnableListeningData { get; set; } = true;
+            public bool CategoryYouTubeMusic { get; set; } = true;
+            public bool EnableYouTubeMusic { get; set; } = true;
+            public bool CategorySoundcloud { get; set; } = true;
+            public bool EnableSoundcloud { get; set; } = true;
         }
 
         private static SettingsData ReadConfigFile()

@@ -8,9 +8,9 @@ using VRPC.Packaging;
 
 class Program
 {
-    public static bool runningOnBrowser = false;
-
     private static Log log = new Log();
+
+    public static bool runningOnBrowser = false;
     public static bool isDiscordRPCRunning = false;
     public static bool isReceivingRPCData = false;
     private static string currentService = "";
@@ -210,7 +210,7 @@ class Program
         {
             Console.Clear();
             Console.WriteLine($"Running {VRPCGlobalData.appName} version {VRPCGlobalData.appVersion}");
-            Console.WriteLine($"Please don't close the console (this black box) while the GUI is present or while the application is installing/uninstalling.\n");
+            Console.WriteLine($"Please don't close the console (this black box) while the UI is present or while the application is installing/uninstalling.\n");
             UseGUI(args);
             return;
         }
