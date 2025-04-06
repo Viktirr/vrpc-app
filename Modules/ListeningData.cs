@@ -96,7 +96,7 @@ namespace VRPC.ListeningDataManager
                     if (!SongsData[key].ContainsKey("isvideo")) { SongsData[key]["isvideo"] = isVideo; }
                     if (!SongsData[key].ContainsKey("songurl")) { SongsData[key]["songurl"] = songURL; }
 
-                    if (SongsData[key].ContainsKey("songurl")) { if(SongsData[key]["songurl"].Contains("Unknown")) { SongsData[key]["songurl"] = songURL; } }
+                    if (SongsData[key].ContainsKey("songurl")) { if (SongsData[key]["songurl"].Contains("Unknown")) { SongsData[key]["songurl"] = songURL; } }
 
                     SongsData[key]["lastplayed"] = currentTime.ToString();
                 }
@@ -155,7 +155,7 @@ namespace VRPC.ListeningDataManager
                         { "songurl", songURL }
                     };
                 }
-                
+
                 VRPCGlobalData.LastListeningDataStats = SongsData[key];
             }
         }
@@ -252,23 +252,11 @@ namespace VRPC.ListeningDataManager
             PreviousArtistName = ArtistName;
         }
 
-        private static int RPCCounter = 0;
-        private static int RPCDelayEarliest = 20;
-        private static int RPCDelayLatest = 450;
-        private static int RPCTrigger = new Random().Next(RPCDelayEarliest, RPCDelayLatest);
-
         public static void UpdateListeningDataRPC()
         {
             if (VRPCSettings.settingsData.ShowcaseDataToRPC == false) { return; }
 
-            if (RPCCounter >= RPCTrigger)
-            {
-                Thread RPCThread = new Thread(() => ListeningDataRPC.UpdateRPC());
-                RPCThread.Start();
-                RPCCounter = -ListeningDataRPC.duration;
-                RPCTrigger = new Random().Next(RPCDelayEarliest, RPCDelayLatest);
-            }
-            else { RPCCounter++; }
+            ListeningDataRPC.UpdateRPC();
         }
 
         public static void Heartbeat(CancellationToken token, bool ShutdownRequested = false)

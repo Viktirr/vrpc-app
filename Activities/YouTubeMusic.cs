@@ -153,7 +153,6 @@ namespace VRPC.DiscordRPCManager.Activities
 
         private static void UpdateAlbum(string? albumName, string? releaseYear, bool isVideo = false)
         {
-            if (ListeningDataRPC.RPCListeningDataRunning == true) { return; }
             try
             {
                 if (IsNull(albumName) && IsNull(releaseYear) || isVideo == true)
