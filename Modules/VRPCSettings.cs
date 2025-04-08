@@ -90,8 +90,16 @@ namespace VRPC.Configuration
 
             public static Dictionary<string, string> ShowcaseDataToRPC { get; } = new Dictionary<string, string> {
                 { "InternalName", "ShowcaseDataToRPC" },
-                { "DisplayName", "Showcase Data To RPC" },
-                { "Description", "Periodically show the listening data stored (i.e. how much you've listened to a song) on Discord" },
+                { "DisplayName", "Show Time Listened on RPC" },
+                { "Description", "Show 'Listened for x hours' on Discord when listening to a song." },
+                { "Visibility", "Shown" },
+                { "Type", "bool" }  
+            };
+            
+            public static Dictionary<string, string> ShowPlayingStatus { get; } = new Dictionary<string, string> { // no use  yet
+                { "InternalName", "ShowPlayingStatus" },
+                { "DisplayName", "Show Playing Status" },
+                { "Description", "Show 'Paused' when pausing a song instead of removing Rich Presence from being shown." },
                 { "Visibility", "Shown" },
                 { "Type", "bool" }  
             };
@@ -99,7 +107,7 @@ namespace VRPC.Configuration
             public static Dictionary<string, string> ShowAppWatermark { get; } = new Dictionary<string, string> {
                 { "InternalName", "ShowAppWatermark" },
                 { "DisplayName", "Show Watermark" },
-                { "Description", "Show 'vrpc' when hovering over playing status on your Discord profile" },
+                { "Description", "Show 'vrpc' when hovering over playing status on your Discord profile (requires Show Playing Status enabled)." },
                 { "Visibility", "Shown" },
                 { "Type", "bool" }  
             };
@@ -128,7 +136,7 @@ namespace VRPC.Configuration
                 { "Type", "category" }
             };
 
-            public static Dictionary<string, string> EnableYouTubeMusic { get; } = new Dictionary<string, string> {
+            public static Dictionary<string, string> EnableYouTubeMusic { get; } = new Dictionary<string, string> { // no use yet
                 { "InternalName", "EnableYouTubeMusic" },
                 { "DisplayName", "Enable YouTube Music Detection" },
                 { "Description", "Should the app detect YouTube Music?" },
@@ -144,7 +152,7 @@ namespace VRPC.Configuration
                 { "Type", "category" }
             };
 
-            public static Dictionary<string, string> EnableSoundcloud { get; } = new Dictionary<string, string> {
+            public static Dictionary<string, string> EnableSoundcloud { get; } = new Dictionary<string, string> { // no use  yet
                 { "InternalName", "EnableSoundcloud" },
                 { "DisplayName", "Enable Soundcloud Detection" },
                 { "Description", "Should the app detect Soundcloud?" },
@@ -160,6 +168,7 @@ namespace VRPC.Configuration
                 { "EnableDiscordRPC", EnableDiscordRPC },
                 { "EnableListeningToButton", EnableListeningToButton },
                 { "ShowcaseDataToRPC", ShowcaseDataToRPC },
+                { "ShowPlayingStatus", ShowPlayingStatus },
                 { "ShowAppWatermark", ShowAppWatermark },
                 { "CategoryListeningData", CategoryListeningData },
                 { "EnableListeningData", EnableListeningData },
@@ -179,6 +188,7 @@ namespace VRPC.Configuration
             public bool EnableDiscordRPC { get; set; } = true;
             public bool EnableListeningToButton { get; set; } = true;
             public bool ShowcaseDataToRPC { get; set; } = false;
+            public bool ShowPlayingStatus { get; set; } = false;
             public bool ShowAppWatermark { get; set; } = false;
             public bool CategoryListeningData { get; set; } = true;
             public bool EnableListeningData { get; set; } = true;
