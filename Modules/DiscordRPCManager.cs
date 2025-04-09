@@ -45,8 +45,8 @@ namespace VRPC.DiscordRPCManager
                 richPresence = new RichPresence()
                 {
                     Type = DiscordRPC.ActivityType.Listening,
-                    Details = "---",
-                    State = "---",
+                    Details = "",
+                    State = "",
                     Assets = new Assets()
                     {
                         LargeImageKey = "",

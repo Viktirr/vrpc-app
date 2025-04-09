@@ -139,7 +139,7 @@ namespace VRPC.Configuration
             public static Dictionary<string, string> EnableYouTubeMusic { get; } = new Dictionary<string, string> { // no use yet
                 { "InternalName", "EnableYouTubeMusic" },
                 { "DisplayName", "Enable YouTube Music Detection" },
-                { "Description", "Should the app detect YouTube Music?" },
+                { "Description", "Affects Discord Rich Presence and Listening Data" },
                 { "Visibility", "Shown" },
                 { "Type", "bool" }  
             };
@@ -155,7 +155,7 @@ namespace VRPC.Configuration
             public static Dictionary<string, string> EnableSoundcloud { get; } = new Dictionary<string, string> { // no use  yet
                 { "InternalName", "EnableSoundcloud" },
                 { "DisplayName", "Enable Soundcloud Detection" },
-                { "Description", "Should the app detect Soundcloud?" },
+                { "Description", "Affects Discord Rich Presence and Listening Data" },
                 { "Visibility", "Shown" },
                 { "Type", "bool" }  
             };
