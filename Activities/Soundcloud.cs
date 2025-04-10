@@ -30,26 +30,61 @@ namespace VRPC.DiscordRPCManager.Activities
 
         private static void UpdateStatus(string? songStatus, int? currentTime, string watermarkString)
         {
-            if (songStatus != "Playing" && songStatus != "Paused")
+            if (VRPCSettings.settingsData.ShowPlayingStatus)
             {
-                richPresence.Assets.SmallImageKey = "";
-                richPresence.Assets.SmallImageText = "" + watermarkString;
-            }
-            if (songStatus == "Playing")
-            {
-                richPresence.Assets.SmallImageKey = "playing";
-                richPresence.Assets.SmallImageText = "Playing" + watermarkString;
-            }
-            else if (songStatus == "Paused")
-            {
-                richPresence.Assets.SmallImageKey = "paused";
-                richPresence.Assets.SmallImageText = "Paused" + watermarkString;
-
-                if (currentTime.HasValue)
+                if (songStatus != "Playing" && songStatus != "Paused")
                 {
-                    richPresence.Timestamps.Start = DateTime.UtcNow - TimeSpan.FromSeconds(currentTime.Value);
+                    richPresence.Assets.SmallImageKey = "";
+                    richPresence.Assets.SmallImageText = "" + watermarkString;
                 }
-                richPresence.Timestamps.End = DateTime.UtcNow;
+                if (songStatus == "Playing")
+                {
+                    richPresence.Assets.SmallImageKey = "playing";
+                    richPresence.Assets.SmallImageText = "Playing" + watermarkString;
+                }
+                else if (songStatus == "Paused")
+                {
+                    richPresence.Assets.SmallImageKey = "paused";
+                    richPresence.Assets.SmallImageText = "Paused" + watermarkString;
+
+                    if (currentTime.HasValue)
+                    {
+                        richPresence.Timestamps.Start = DateTime.UtcNow - TimeSpan.FromSeconds(currentTime.Value);
+                    }
+                    richPresence.Timestamps.End = DateTime.UtcNow;
+                }
+            }
+            else
+            {
+                Log log = new Log();
+                if (songStatus != "Playing" && songStatus != "Paused")
+                {
+                    richPresence.Assets.SmallImageKey = "";
+                    richPresence.Assets.SmallImageText = "";
+                }
+                if (songStatus == "Playing")
+                {
+                    if (VRPCGlobalData.MiscellaneousSongData.ContainsKey("status"))
+                    {
+                        if (songStatus != VRPCGlobalData.MiscellaneousSongData["status"])
+                        {
+                            log.Write("[Soundcloud] Rich Presence update from status (show playing off)");
+                            VRPCGlobalEvents.SendForceUpdateRPEvent();
+                        }
+                    }
+
+                    VRPCGlobalData.MiscellaneousSongData["status"] = "Playing";
+                    richPresence.Assets.SmallImageKey = "";
+                    richPresence.Assets.SmallImageText = "";
+                }
+                else if (songStatus == "Paused")
+                {
+                    richPresence.Assets.SmallImageKey = "";
+                    richPresence.Assets.SmallImageText = "";
+
+                    VRPCGlobalData.MiscellaneousSongData["status"] = "Paused";
+                    VRPCGlobalEvents.SendRichPresenceClearEvent();
+                }
             }
         }
 
@@ -125,17 +160,33 @@ namespace VRPC.DiscordRPCManager.Activities
 
             if (tempRichPresenceStart > DateTime.UtcNow - TimeSpan.FromSeconds(currentTime) + TimeSpan.FromSeconds(timestampTolerance) || tempRichPresenceStart < DateTime.UtcNow - TimeSpan.FromSeconds(currentTime) - TimeSpan.FromSeconds(timestampTolerance))
             {
+                log.Write("[Soundcloud] Rich Presence update from Timestamp");
                 VRPCGlobalEvents.SendForceUpdateRPEvent();
             }
-            if (songStatus + watermarkString != tempRichPresenceSmallImageText) { VRPCGlobalEvents.SendForceUpdateRPEvent(); }
+
+            if (songStatus + watermarkString != tempRichPresenceSmallImageText && VRPCSettings.settingsData.ShowPlayingStatus)
+            {
+                log.Write("[Soundcloud] Rich Presence update from status");
+                VRPCGlobalEvents.SendForceUpdateRPEvent();
+            }
 
             if (cleanSongName != songName)
             {
-                if (tempRichPresenceDetails != cleanSongName) { VRPCGlobalData.MiscellaneousSongData.Clear(); VRPCGlobalEvents.SendForceUpdateRPEvent(); }
+                if (tempRichPresenceDetails != cleanSongName)
+                {
+                    log.Write("[Soundcloud] Rich Presence update from song name");
+                    VRPCGlobalData.MiscellaneousSongData.Clear();
+                    VRPCGlobalEvents.SendForceUpdateRPEvent();
+                }
             }
             else
             {
-                if (tempRichPresenceDetails != songName) { VRPCGlobalData.MiscellaneousSongData.Clear(); VRPCGlobalEvents.SendForceUpdateRPEvent(); }
+                if (tempRichPresenceDetails != songName)
+                {
+                    log.Write("[Soundcloud] Rich Presence update from song name");
+                    VRPCGlobalData.MiscellaneousSongData.Clear();
+                    VRPCGlobalEvents.SendForceUpdateRPEvent();
+                }
             }
         }
     }

@@ -87,11 +87,24 @@ namespace VRPC.DiscordRPCManager
                 try
                 {
                     client.SetPresence(richPresence);
-                    log.Info($"[DiscordRPC] Discord Rich Presence forcibly updated. Now {richPresence.Type} {richPresence.Details} by {richPresence.State}");
+                    log.Info($"[DiscordRPC] Discord Rich Presence updated. Now {richPresence.Type} {richPresence.Details} by {richPresence.State}");
                 }
                 catch (Exception ex)
                 {
-                    log.Error($"[DiscordRPC] Couldn't forcibly update rich presence: {ex.Message}");
+                    log.Error($"[DiscordRPC] Couldn't update rich presence: {ex.Message}");
+                }
+            };
+
+            VRPCGlobalEvents.RPClear += (sender, e) =>
+            {
+                try
+                {
+                    client.ClearPresence();
+                    log.Info($"[DiscordRPC] Discord Rich Presence removed.");
+                }
+                catch (Exception ex)
+                {
+                    log.Error($"[DiscordRPC] Couldn't clear rich presence: {ex.Message}");
                 }
             };
         }

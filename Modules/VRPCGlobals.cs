@@ -178,5 +178,12 @@ namespace VRPC.Globals
                 t.Start();
             }
         }
+
+        public static event EventHandler? RPClear;
+
+        public static void SendRichPresenceClearEvent()
+        {
+            RPClear?.Invoke(RPClear, EventArgs.Empty);
+        }
     }
 }

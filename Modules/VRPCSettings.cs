@@ -96,7 +96,7 @@ namespace VRPC.Configuration
                 { "Type", "bool" }  
             };
             
-            public static Dictionary<string, string> ShowPlayingStatus { get; } = new Dictionary<string, string> { // no use  yet
+            public static Dictionary<string, string> ShowPlayingStatus { get; } = new Dictionary<string, string> {
                 { "InternalName", "ShowPlayingStatus" },
                 { "DisplayName", "Show Playing Status" },
                 { "Description", "Show 'Paused' when pausing a song instead of removing Rich Presence from being shown." },
@@ -136,10 +136,10 @@ namespace VRPC.Configuration
                 { "Type", "category" }
             };
 
-            public static Dictionary<string, string> EnableYouTubeMusic { get; } = new Dictionary<string, string> { // no use yet
+            public static Dictionary<string, string> EnableYouTubeMusic { get; } = new Dictionary<string, string> {
                 { "InternalName", "EnableYouTubeMusic" },
                 { "DisplayName", "Enable YouTube Music Detection" },
-                { "Description", "Should the app detect YouTube Music?" },
+                { "Description", "Affects your Discord's Rich Presence and Listening Data" },
                 { "Visibility", "Shown" },
                 { "Type", "bool" }  
             };
@@ -152,10 +152,10 @@ namespace VRPC.Configuration
                 { "Type", "category" }
             };
 
-            public static Dictionary<string, string> EnableSoundcloud { get; } = new Dictionary<string, string> { // no use  yet
+            public static Dictionary<string, string> EnableSoundcloud { get; } = new Dictionary<string, string> {
                 { "InternalName", "EnableSoundcloud" },
                 { "DisplayName", "Enable Soundcloud Detection" },
-                { "Description", "Should the app detect Soundcloud?" },
+                { "Description", "Affects your Discord's Rich Presence and Listening Data" },
                 { "Visibility", "Shown" },
                 { "Type", "bool" }  
             };
