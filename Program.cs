@@ -57,6 +57,8 @@ class Program
         // We make 2 tries to start Discord RPC in case the user started a new tab/refreshed the page.
         if (messageDictionary[1].Contains("Opened"))
         {
+            if (currentService == "YouTube Music" && VRPCSettings.settingsData.EnableYouTubeMusic == false) { return; }
+            if (currentService == "Soundcloud" && VRPCSettings.settingsData.EnableSoundcloud == false) { return; }
             bool OpenDiscordRPCSuccess = OpenDiscordRPC();
             if (!OpenDiscordRPCSuccess) { Thread.Sleep(2000); OpenDiscordRPC(); return; }
         }
@@ -145,6 +147,7 @@ class Program
         ListeningData.Heartbeat(listeningDataCancellationToken, ShutdownRequested);
     }
 
+    // Show install/uninstall prompt if the user starts the program as standalone
     static void UseGUI(string[] args)
     {
         bool isUninstall = false;
