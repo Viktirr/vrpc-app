@@ -103,6 +103,7 @@ namespace VRPC.Packaging
             }
 
             // Delete contents of installation folder
+            string binPath = Path.Combine(installPath, "bin");
             Console.WriteLine($"Deleting contents at {installPath}");
             if (Directory.Exists(installPath))
             {
@@ -115,9 +116,9 @@ namespace VRPC.Packaging
                     }
                     else
                     {
-                        files = Directory.GetFiles(installPath);
+                        files = Directory.GetFiles(binPath);
                     }
-                    Console.WriteLine($"There are {files.Length} files in {installPath}");
+                    Console.WriteLine($"There are {files.Length} files in {binPath}");
 
                     int filesUpperThreshold = 400;
                     if (files.Length > filesUpperThreshold)

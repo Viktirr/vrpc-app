@@ -155,12 +155,13 @@ class Program
 
         string roamingAppDataPath = Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData);
         string appNamePath = Path.Combine(roamingAppDataPath, VRPCGlobalData.appName);
+        string binPath = Path.Combine(appNamePath, "bin");
 
         string sourceFilePath = AppContext.BaseDirectory;
 
         if (Directory.Exists(appNamePath) && !appNamePath.Contains(sourceFilePath))
         {
-            if (File.Exists(Path.Combine(appNamePath, "VRPC.exe")))
+            if (File.Exists(Path.Combine(binPath, "VRPC.exe")))
             {
                 isUninstallTemp = true;
                 PackagingGlobals.uninstallString = $"\n\nPLEASE READ\nYou were launched to the uninstaller because the application is already installed. If this is a mistake, delete the folder {appNamePath} and relaunch the installer.\n\nUPDATES:\nIf you're updating to a new version, first select Uninstall below then relaunch the installer.";

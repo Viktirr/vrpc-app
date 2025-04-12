@@ -66,9 +66,10 @@ namespace VRPC.Packaging
             // Set variables for installation
             string roamingAppDataPath = Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData);
             string appNamePath = System.IO.Path.Combine(roamingAppDataPath, VRPCGlobalData.appName);
+            string binPath = Path.Combine(appNamePath, "bin");
 
             string sourceFilePath = AppContext.BaseDirectory;
-            string destinationFilePath = System.IO.Path.Combine(appNamePath, "VRPC.exe");
+            string destinationFilePath = System.IO.Path.Combine(binPath, "VRPC.exe");
 
             // Create folder
             Console.WriteLine($"Creating folder {appNamePath}");
@@ -84,6 +85,23 @@ namespace VRPC.Packaging
             catch
             {
                 Console.WriteLine($"Error: Couldn't create folder {appNamePath}. Installation cannot proceed. Check your available storage space. Press close to exit.");
+                Console.WriteLine($"Press any key to exit.");
+                Console.ReadLine();
+                Environment.Exit(1);
+                return;
+            }
+
+            try
+            {
+                if (!Directory.Exists(binPath))
+                {
+                    Directory.CreateDirectory(binPath);
+                    Console.WriteLine($"Folder {binPath} created successfully");
+                }
+            }
+            catch
+            {
+                Console.WriteLine($"Error: Couldn't create folder {binPath}. Installation cannot proceed. Check your available storage space. Press close to exit.");
                 Console.WriteLine($"Press any key to exit.");
                 Console.ReadLine();
                 Environment.Exit(1);
@@ -174,7 +192,7 @@ namespace VRPC.Packaging
                     string fileName = System.IO.Path.GetFileName(file);
 
                     if (fileName.Contains("VRPCInstall")) { fileName = "VRPC.exe"; }
-                    string destFile = System.IO.Path.Combine(appNamePath, fileName);
+                    string destFile = System.IO.Path.Combine(binPath, fileName);
                     File.Copy(file, destFile, true);
                     Console.WriteLine($"Copied {file} to {destFile}");
                 }
@@ -189,18 +207,18 @@ namespace VRPC.Packaging
             }
 
             // Create manifest file
-            Console.WriteLine($"Creating manifest file at {appNamePath}");
+            Console.WriteLine($"Creating manifest file at {binPath}");
 
-            ManifestFileData manifestFileData = new ManifestFileData($"{appNamePath}\\VRPC.exe");
-            ManifestFileDataChrome manifestFileDataChrome = new ManifestFileDataChrome($"{appNamePath}\\VRPC.exe");
+            ManifestFileData manifestFileData = new ManifestFileData($"{binPath}\\VRPC.exe");
+            ManifestFileDataChrome manifestFileDataChrome = new ManifestFileDataChrome($"{binPath}\\VRPC.exe");
 
             string manifestFileDataJson = JsonConvert.SerializeObject(manifestFileData, Formatting.Indented);
-            File.WriteAllText(System.IO.Path.Combine(appNamePath, "vrpc.json"), manifestFileDataJson);
-            Console.WriteLine($"Manifest file {System.IO.Path.Combine(appNamePath, "vrpc.json")} created.");
+            File.WriteAllText(System.IO.Path.Combine(binPath, "vrpc.json"), manifestFileDataJson);
+            Console.WriteLine($"Manifest file {System.IO.Path.Combine(binPath, "vrpc.json")} created.");
 
             string manifestFileDataChromeJson = JsonConvert.SerializeObject(manifestFileDataChrome, Formatting.Indented);
-            File.WriteAllText(System.IO.Path.Combine(appNamePath, "vrpc-chrome.json"), manifestFileDataChromeJson);
-            Console.WriteLine($"Manifest file {System.IO.Path.Combine(appNamePath, "vrpc-chrome.json")} created.");
+            File.WriteAllText(System.IO.Path.Combine(binPath, "vrpc-chrome.json"), manifestFileDataChromeJson);
+            Console.WriteLine($"Manifest file {System.IO.Path.Combine(binPath, "vrpc-chrome.json")} created.");
 
             // Create registry
             if (System.Runtime.InteropServices.RuntimeInformation.IsOSPlatform(System.Runtime.InteropServices.OSPlatform.Windows))
@@ -227,29 +245,29 @@ namespace VRPC.Packaging
                     using (RegistryKey key = Registry.CurrentUser.CreateSubKey(currentKey))
                     {
                         key.SetValue("InstallPath", $"{appNamePath}");
-                        key.SetValue("ManifestPath", $"{appNamePath}\\vrpc.json");
-                        key.SetValue("ManifestChromePath", $"{appNamePath}\\vrpc-chrome.json");
+                        key.SetValue("ManifestPath", $"{binPath}\\vrpc.json");
+                        key.SetValue("ManifestChromePath", $"{binPath}\\vrpc-chrome.json");
                     }
 
                     currentKey = @"Software\Mozilla\NativeMessagingHosts\vrpc";
                     Console.WriteLine($"Creating registry key for Firefox Native Messaging support at {currentKey}");
                     using (RegistryKey key = Registry.CurrentUser.CreateSubKey(currentKey))
                     {
-                        key.SetValue(null, $"{appNamePath}\\vrpc.json");
+                        key.SetValue(null, $"{binPath}\\vrpc.json");
                     }
 
                     currentKey = @"Software\Google\Chrome\NativeMessagingHosts\vrpc";
                     Console.WriteLine($"Creating registry key for Chrome Native Messaging support at {currentKey}");
                     using (RegistryKey key = Registry.CurrentUser.CreateSubKey(currentKey))
                     {
-                        key.SetValue(null, $"{appNamePath}\\vrpc-chrome.json");
+                        key.SetValue(null, $"{binPath}\\vrpc-chrome.json");
                     }
 
                     currentKey = @"Software\Microsoft\Edge\NativeMessagingHosts\vrpc";
                     Console.WriteLine($"Creating registry key for Edge Native Messaging support at {currentKey}");
                     using (RegistryKey key = Registry.CurrentUser.CreateSubKey(currentKey))
                     {
-                        key.SetValue(null, $"{appNamePath}\\vrpc-chrome.json");
+                        key.SetValue(null, $"{binPath}\\vrpc-chrome.json");
                     }
                 }
                 catch
@@ -261,7 +279,7 @@ namespace VRPC.Packaging
                     return;
                 }
             }
-            Console.WriteLine($"The application is now installed. Press any key to exit.");
+            Console.WriteLine($"\nThe application is now installed. Press any key to exit.");
             Console.ReadLine();
         }
     }
