@@ -9,6 +9,7 @@ using VRPC.Packaging;
 class Program
 {
     private static Log log = new Log();
+    private static VRPC.Lock.Lock _lock = new VRPC.Lock.Lock();
 
     public static bool runningOnBrowser = false;
     public static bool isDiscordRPCRunning = false;
@@ -196,6 +197,11 @@ class Program
         }
     }
 
+    public static void RemoveLock()
+    {
+        _lock.RemoveLock();
+    }
+
     static void Main(string[] args)
     {
         foreach (string arg in args)
@@ -224,6 +230,8 @@ class Program
         log.Write("[Main] Reading Settings from file.");
 
         if (VRPCSettings.settingsData.DisableClearingLogs == false) { log.Clear(); }
+
+        _lock.Create();
 
         Thread nativeMessagingThread = new Thread(UseNativeMessaging);
         nativeMessagingThread.Start();
