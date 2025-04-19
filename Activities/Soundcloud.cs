@@ -152,11 +152,13 @@ namespace VRPC.DiscordRPCManager.Activities
             richPresence.Timestamps.Start = DateTime.UtcNow - TimeSpan.FromSeconds(currentTime);
             richPresence.Timestamps.End = DateTime.UtcNow + TimeSpan.FromSeconds(totalTime - currentTime);
 
+            VRPCGlobalData.MiscellaneousSongData["platform"] = "Soundcloud";
+            VRPCGlobalData.MiscellaneousSongData["songduration"] = totalTime.ToString();
+
             UpdateListeningData(songName, artistName, songStatus);
             UpdateStatus(songStatus, currentTime, watermarkString);
             UpdateImage(smallSongBanner);
             UpdateButton(songUrl);
-            VRPCGlobalData.MiscellaneousSongData["platform"] = "Soundcloud";
 
             if (tempRichPresenceStart > DateTime.UtcNow - TimeSpan.FromSeconds(currentTime) + TimeSpan.FromSeconds(timestampTolerance) || tempRichPresenceStart < DateTime.UtcNow - TimeSpan.FromSeconds(currentTime) - TimeSpan.FromSeconds(timestampTolerance))
             {

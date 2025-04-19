@@ -22,7 +22,7 @@ namespace VRPC.ListeningDataManager
         private static bool ErrorWritingToFile = true;
         private static DateTime LastDataUpdate;
 
-        private static float matchingTextThreshold = 0.8f;
+        private const float MATCHING_TEXT_THRESHOLD = 0.9f;
 
         protected class SongData
         {
@@ -55,6 +55,9 @@ namespace VRPC.ListeningDataManager
 
                 string platform = "Unknown";
                 if (VRPCGlobalData.MiscellaneousSongData.ContainsKey("platform")) { platform = VRPCGlobalData.MiscellaneousSongData["platform"]; }
+
+                string songDuration = "0";
+                if (VRPCGlobalData.MiscellaneousSongData.ContainsKey("songduration")) { songDuration = VRPCGlobalData.MiscellaneousSongData["songduration"]; }
 
                 if (SongsData.ContainsKey(key))
                 {
@@ -95,6 +98,7 @@ namespace VRPC.ListeningDataManager
                     SongsData[key]["lastplatformlistenedon"] = platform;
                     if (!SongsData[key].ContainsKey("isvideo")) { SongsData[key]["isvideo"] = isVideo; }
                     if (!SongsData[key].ContainsKey("songurl")) { SongsData[key]["songurl"] = songURL; }
+                    SongsData[key]["songduration"] = songDuration;
 
                     if (SongsData[key].ContainsKey("songurl")) { if (SongsData[key]["songurl"].Contains("Unknown")) { SongsData[key]["songurl"] = songURL; } }
 
@@ -107,7 +111,7 @@ namespace VRPC.ListeningDataManager
                         float currentMatchingPercentage1 = VRPCGlobalFunctions.PercentageMatchingString(key, currentKey);
                         float currentMatchingPercentage2 = VRPCGlobalFunctions.PercentageMatchingString(currentKey, key);
                         float currentMatchingPercentage = (currentMatchingPercentage1 + currentMatchingPercentage2) / 2;
-                        if (currentMatchingPercentage >= matchingTextThreshold)
+                        if (currentMatchingPercentage >= MATCHING_TEXT_THRESHOLD)
                         {
                             log.Info($"[ListeningData] Found {key} in {currentKey} with {currentMatchingPercentage * 100} percent matching. Using the latter to save values instead.");
 
@@ -152,7 +156,8 @@ namespace VRPC.ListeningDataManager
                         { "daymostplayed", (currentTime / 86400).ToString() },
                         { "daymostplayedtimelistened", songTotalSeconds.ToString() },
                         { "isvideo", isVideo },
-                        { "songurl", songURL }
+                        { "songurl", songURL },
+                        { "songduration", "0" }
                     };
                 }
 

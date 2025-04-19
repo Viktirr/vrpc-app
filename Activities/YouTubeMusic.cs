@@ -311,14 +311,16 @@ namespace VRPC.DiscordRPCManager.Activities
             catch { log.Write("[YouTube Music] Something went wrong setting timestamps to Rich Presence"); }
 
             bool isVideo = IsVideo(albumName, releaseYear);
+
+            VRPCGlobalData.MiscellaneousSongData["platform"] = "YouTube Music";
+            if (isVideo == true) { VRPCGlobalData.MiscellaneousSongData["isvideo"] = "true"; }
+            VRPCGlobalData.MiscellaneousSongData["songduration"] = songInSeconds.ToString();
+
             UpdateListeningData(songName, artistName, songStatus);
             UpdateStatus(songStatus, songInSecondsCurrent, watermarkString);
             UpdateImage(songId, smallSongBanner);
             UpdateAlbum(albumName, releaseYear, isVideo);
             UpdateButton(songId);
-
-            VRPCGlobalData.MiscellaneousSongData["platform"] = "YouTube Music";
-            if (isVideo == true) { VRPCGlobalData.MiscellaneousSongData["isvideo"] = "true"; }
 
             if (tempRichPresenceStart > DateTime.UtcNow - TimeSpan.FromSeconds(songInSecondsCurrent) + TimeSpan.FromSeconds(timestampTolerance) || tempRichPresenceStart < DateTime.UtcNow - TimeSpan.FromSeconds(songInSecondsCurrent) - TimeSpan.FromSeconds(timestampTolerance))
             {
