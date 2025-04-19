@@ -10,6 +10,7 @@ namespace VRPC.Configuration
         public static string UserAppDataPath = Path.Combine(pathAppData, "VRPCApp");
         public static string UserDataPath = Path.Combine(UserAppDataPath, "Data");
         public static string ListeningDataPath = Path.Combine(UserDataPath, "ListeningData.json");
+        public static string ListeningDataBackupPath = Path.Combine(UserDataPath, "ListeningData_backup.json");
         public static string ConfigPath = Path.Combine(UserDataPath, "Config.json");
         public static SettingsData settingsData = new SettingsData();
 
