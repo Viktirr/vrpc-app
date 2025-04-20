@@ -8,12 +8,12 @@ import sys
 
 def copy_files_to_appdata():
     """
-    Copies all files from ./bin/Debug/net6.0 to %APPDATA%/VRPCApp.
+    Copies all files from ./bin/Debug/net9.0 to %APPDATA%/VRPCApp.
     """
     try:
         # 1. Define the source directory relative to the script's location
         #    Use resolve() to get an absolute path, which is generally safer.
-        source_dir = Path("./bin/Debug/net6.0").resolve()
+        source_dir = Path("./bin/Debug/net9.0").resolve()
 
         # 2. Define the destination directory using %APPDATA%
         appdata_path = os.getenv('APPDATA')
@@ -22,6 +22,7 @@ def copy_files_to_appdata():
             sys.exit(1) # Exit if APPDATA is not set
 
         destination_dir = Path(appdata_path) / "VRPCApp"
+        destination_dir = Path(destination_dir) / "bin"
 
         # 3. Check if the source directory exists
         if not source_dir.is_dir():

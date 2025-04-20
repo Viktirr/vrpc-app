@@ -24,7 +24,7 @@ namespace VRPC.ListeningDataManager
 
         private const float MATCHING_TEXT_THRESHOLD = 0.9f;
 
-        protected class SongData
+        public class SongData
         {
             // "TotalListened": 0
             // "SongsData": {
@@ -176,7 +176,36 @@ namespace VRPC.ListeningDataManager
             }
             catch
             {
-                log.Warn("[ListeningData] Couldn't read from file. Maybe the file is corrupted?");
+                log.Warn("[ListeningData] Couldn't read from file. Maybe the file is corrupted? Trying backup...");
+                string backupPath = VRPCSettings.ListeningDataBackupPath;
+                
+                if (File.Exists(backupPath))
+                {
+                    try
+                    {
+                        string json = File.ReadAllText(backupPath, Encoding.UTF8);
+                        SongData? backupSongData = JsonSerializer.Deserialize<SongData>(json);
+
+                        if (backupSongData != null)
+                        {
+                            log.Info("[ListeningData] Backup is valid. Using backup...");
+                            File.WriteAllText(filePath, json, Encoding.UTF8);
+                            songData = backupSongData;
+                            ErrorReadingFromFile = false;
+                        }
+                    }
+                    catch
+                    {
+                        log.Error("[ListeningData] Couldn't read from backup file. Creating new file...");
+                        songData = new SongData();
+                        ErrorReadingFromFile = true;
+                    }
+                }
+                else
+                {
+                    log.Error("[ListeningData] Backup doesn't exist. Creating new file...");
+                    songData = new SongData();
+                }
                 ErrorReadingFromFile = true;
                 return songData;
             }
@@ -212,8 +241,8 @@ namespace VRPC.ListeningDataManager
         public static void UpdateListeningDataFile()
         {
             if (VRPCSettings.settingsData.EnableListeningData == false) { activeSongInSeconds = 0; return; }
-            SongData songData = ReadDataFile();
             bool fileExists = CheckDataFileExists();
+            SongData songData = ReadDataFile();
             if (!fileExists)
             {
                 songData = UpdateSongData(songData);

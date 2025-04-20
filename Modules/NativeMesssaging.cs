@@ -3,6 +3,7 @@ using System.Text.Json;
 using VRPC.Logging;
 using VRPC.ListeningDataManager;
 using VRPC.Globals;
+using VRPC.Configuration;
 
 namespace VRPC.NativeMessasing
 {
@@ -15,8 +16,20 @@ namespace VRPC.NativeMessasing
                 if (messageDictionary[1].Contains("Shutdown"))
                 {
                     log.Write("[NativeMessaging] Possible shutdown requested.");
-                    CancellationToken ct = new CancellationToken();
-                    ListeningData.Heartbeat(ct, true);
+                    Program.RemoveLock();
+
+                    ListeningData.UpdateListeningDataFile();
+
+                    try
+                    {
+                        var data = File.ReadAllText(VRPCSettings.ListeningDataPath);
+                        JsonSerializer.Deserialize<ListeningData.SongData>(data);
+                        ListeningDataBackup.CreateBackup();
+                    }
+                    catch
+                    {
+                        log.Write("[NativeMessaging] Skipping backup due to corrupted file.");
+                    }
                 }
                 else if (messageDictionary[1].Contains("Started"))
                 {
@@ -62,6 +75,19 @@ namespace VRPC.NativeMessasing
             {
                 log.Write("[NativeMessaging] Couldn't deserialize received json. Assuming connection is closed. Exiting.");
                 Program.RemoveLock();
+
+                ListeningData.UpdateListeningDataFile();
+                try
+                {
+                    var data = File.ReadAllText(VRPCSettings.ListeningDataPath);
+                    JsonSerializer.Deserialize<ListeningData.SongData>(data);
+                    ListeningDataBackup.CreateBackup();
+                }
+                catch
+                {
+                    log.Write("[NativeMessaging] Skipping backup due to corrupted file.");
+                }
+
                 Environment.Exit(0);
             }
             return finalMessage;
