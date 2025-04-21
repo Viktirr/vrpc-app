@@ -231,15 +231,26 @@ namespace VRPC.DiscordRPCManager.Activities
             }
             catch { log.Write("[YouTube Music] Something went wrong setting artist and song name to Rich Presence"); }
 
-            int currentTimeInt = string.IsNullOrEmpty(currentTime) ? 0 : int.Parse(currentTime);
-            int songDurationInt = string.IsNullOrEmpty(songDuration) ? 0 : int.Parse(songDuration);
+            int currentTimeInt = 0;
+            int songDurationInt = 0;
+            
             try
             {
                 if (currentTime != "NaN" || currentTime != null)
                 {
-                    richPresence.Timestamps.Start = DateTime.UtcNow - TimeSpan.FromSeconds(currentTimeInt);
-                    richPresence.Timestamps.End = DateTime.UtcNow + TimeSpan.FromSeconds(songDurationInt - currentTimeInt);
+                    currentTimeInt = string.IsNullOrEmpty(currentTime) ? 0 : int.Parse(currentTime);
+                    songDurationInt = string.IsNullOrEmpty(songDuration) ? 0 : int.Parse(songDuration);
                 }
+            }
+            catch (Exception ex)
+            {
+                log.Warn($"[YouTube Music] Something went wrong parsing currentTime and songDuration. Exception {ex.Data}");
+            }
+
+            try
+            {
+                richPresence.Timestamps.Start = DateTime.UtcNow - TimeSpan.FromSeconds(currentTimeInt);
+                richPresence.Timestamps.End = DateTime.UtcNow + TimeSpan.FromSeconds(songDurationInt - currentTimeInt);
             }
             catch
             {
