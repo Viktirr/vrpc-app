@@ -110,7 +110,7 @@ namespace VRPC.DiscordRPCManager.Activities
                     else if (songStatus == "Paused")
                     {
                         VRPCGlobalData.MiscellaneousSongData["status"] = "Paused";
-                        VRPCGlobalEvents.SendRichPresenceClearEvent();
+                        VRPCGlobalEvents.SendRichPresenceClearEvent(delayRichPresence);
                     }
                 }
                 catch { }

@@ -168,8 +168,6 @@ namespace VRPC.Globals
             }
             else
             {
-                Log log = new Log();
-                
                 Thread t = new Thread(() => 
                 {
                     Thread.Sleep(delay);
@@ -181,9 +179,21 @@ namespace VRPC.Globals
 
         public static event EventHandler? RPClear;
 
-        public static void SendRichPresenceClearEvent()
+        public static void SendRichPresenceClearEvent(int delay = 0)
         {
-            RPClear?.Invoke(RPClear, EventArgs.Empty);
+            if (delay == 0)
+            {
+                RPClear?.Invoke(RPClear, EventArgs.Empty);
+            }
+            else
+            {
+                Thread t = new Thread(() => 
+                {
+                    Thread.Sleep(delay);
+                    RPClear?.Invoke(RPClear, EventArgs.Empty);
+                });
+                t.Start();
+            }
         }
     }
 }
