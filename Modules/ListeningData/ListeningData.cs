@@ -297,7 +297,16 @@ namespace VRPC.ListeningDataManager
                     Thread.Sleep(1000);
 
                     if (string.IsNullOrEmpty(SongName) || string.IsNullOrEmpty(ArtistName)) { continue; }
-                    if (SongPlaying && ((DateTime.UtcNow - LastDataUpdate) < TimeSpan.FromSeconds(6)))
+
+                    int songDuration = 6;
+                    if (VRPCGlobalData.MiscellaneousSongData.ContainsKey("songduration"))
+                    {
+                        int.TryParse(VRPCGlobalData.MiscellaneousSongData["songduration"], out songDuration);
+                    }
+
+                    // Song duration in this case would be the amount of seconds the listening data has
+                    // before timing out (turning inactive).
+                    if (SongPlaying && ((DateTime.UtcNow - LastDataUpdate) < TimeSpan.FromSeconds(songDuration)))
                     {
                         activeSongInSeconds++;
                         log.Write($"[ListeningData - Heartbeat] {SongName} - {ArtistName} - {activeSongInSeconds} - Active");
