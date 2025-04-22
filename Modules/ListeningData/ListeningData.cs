@@ -34,6 +34,7 @@ namespace VRPC.ListeningDataManager
             // }
             public string versionNumber { get; set; } = VRPCGlobalData.appVersion;
             public int TotalListened { get; set; } = 0;
+            public int CreationDate { get; set; } = (int)DateTimeOffset.UtcNow.ToUnixTimeSeconds();
             public Dictionary<string, Dictionary<string, string>> SongsData { get; set; } = new Dictionary<string, Dictionary<string, string>>();
 
             public void AddSong(string songName, string artistName, int songTotalSeconds, bool recursive = false)
