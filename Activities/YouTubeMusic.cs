@@ -236,8 +236,11 @@ namespace VRPC.DiscordRPCManager.Activities
 
             try
             {
-                richPresence.Timestamps.Start = DateTime.UtcNow - TimeSpan.FromSeconds(currentTimeInt);
-                richPresence.Timestamps.End = DateTime.UtcNow + TimeSpan.FromSeconds(songDurationInt - currentTimeInt);
+                if (songDurationInt != 0)
+                {
+                    richPresence.Timestamps.Start = DateTime.UtcNow - TimeSpan.FromSeconds(currentTimeInt);
+                    richPresence.Timestamps.End = DateTime.UtcNow + TimeSpan.FromSeconds(songDurationInt - currentTimeInt);
+                }
             }
             catch
             {
@@ -262,7 +265,7 @@ namespace VRPC.DiscordRPCManager.Activities
                 return;
             }
             VRPCGlobalData.MiscellaneousSongData["songduration"] = songDurationInt.ToString() ?? string.Empty;
-            log.Write($"[YouTube Music] Rich Presence updated with {richPresence.Details} by {richPresence.State} at {richPresence.Timestamps.Start} to {richPresence.Timestamps.End}.");
+            log.Write($"[YouTube Music] Rich Presence template with {richPresence.Details} by {richPresence.State} at {richPresence.Timestamps.Start} to {richPresence.Timestamps.End}.");
 
             if (!string.IsNullOrEmpty(cleanSongName))
             {
