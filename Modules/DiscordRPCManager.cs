@@ -84,10 +84,11 @@ namespace VRPC.DiscordRPCManager
 
             VRPCGlobalEvents.RPForceUpdate += (sender, e) =>
             {
+                log.Write("[DiscordRPC] Discord RPC force update called.");
                 try
                 {
                     client.SetPresence(richPresence);
-                    log.Info($"[DiscordRPC] Discord Rich Presence updated. Now {richPresence.Type} {richPresence.Details} by {richPresence.State}");
+                    log.Info($"[DiscordRPC] Discord Rich Presence updated. Now {richPresence.Type} {richPresence.Details} by {richPresence.State} at {richPresence.Timestamps.Start} to {richPresence.Timestamps.End}.");
                 }
                 catch (Exception ex)
                 {

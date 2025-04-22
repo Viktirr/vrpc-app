@@ -8,14 +8,14 @@ namespace VRPC.DiscordRPCManager.Activities
 {
     class YouTubeMusic : SetDiscordActivity
     {
-        private const int delayRichPresence = 2000;
+        private const int delayRichPresence = 0;
+        static Log log = new Log();
         private static void UpdateListeningData(string? songName, string? artistName, string? songStatus)
         {
             if (songName == null || songName == "Browsing" || songName == "" || artistName == null || songStatus == null) { return; }
             bool songPlaying = songStatus == "Playing" ? true : false;
             ListeningData.UpdateListeningData(songName, artistName, songPlaying);
         }
-        static Log log = new Log();
 
         private static bool IsNull(string? str)
         {
@@ -214,26 +214,12 @@ namespace VRPC.DiscordRPCManager.Activities
                 {
                     cleanSongName = VRPCGlobalFunctions.RemoveArtistFromTitle(songName, artistName);
                 }
-
-                if (!string.IsNullOrEmpty(cleanSongName))
-                {
-                    richPresence.Details = cleanSongName;
-                }
-                else if (!string.IsNullOrEmpty(songName))
-                {
-                    richPresence.Details = songName;
-                }
-
-                if (!string.IsNullOrEmpty(artistName))
-                {
-                    richPresence.State = artistName;
-                }
             }
             catch { log.Write("[YouTube Music] Something went wrong setting artist and song name to Rich Presence"); }
 
             int currentTimeInt = 0;
             int songDurationInt = 0;
-            
+
             try
             {
                 if (currentTime != "NaN" || currentTime != null)
@@ -242,9 +228,10 @@ namespace VRPC.DiscordRPCManager.Activities
                     songDurationInt = string.IsNullOrEmpty(songDuration) ? 0 : int.Parse(songDuration);
                 }
             }
-            catch (Exception ex)
+            catch //(Exception ex)
             {
-                log.Warn($"[YouTube Music] Something went wrong parsing currentTime and songDuration. Exception {ex.Data}");
+                // No need to show this as it will fail most of the time anyway.
+                // log.Warn($"[YouTube Music] Something went wrong parsing currentTime and songDuration. Exception {ex.Data}");
             }
 
             try
@@ -262,6 +249,27 @@ namespace VRPC.DiscordRPCManager.Activities
             VRPCGlobalData.MiscellaneousSongData["platform"] = "YouTube Music";
             if (isVideo == true) { VRPCGlobalData.MiscellaneousSongData["isvideo"] = "true"; }
             VRPCGlobalData.MiscellaneousSongData["songduration"] = songDuration ?? string.Empty;
+
+            if (currentTimeInt == 0 && songDurationInt == 0)
+            {
+                log.Write("[YouTube Music] Rich Presence timestamps are 0, not updating.");
+                return;
+            }
+            log.Write($"[YouTube Music] Rich Presence updated with {richPresence.Details} by {richPresence.State} at {richPresence.Timestamps.Start} to {richPresence.Timestamps.End}.");
+
+            if (!string.IsNullOrEmpty(cleanSongName))
+            {
+                richPresence.Details = cleanSongName;
+            }
+            else if (!string.IsNullOrEmpty(songName))
+            {
+                richPresence.Details = songName;
+            }
+
+            if (!string.IsNullOrEmpty(artistName))
+            {
+                richPresence.State = artistName;
+            }
 
             UpdateListeningData(songName, artistName, songStatus);
             UpdateStatus(songStatus, currentTimeInt, watermarkString);
