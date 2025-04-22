@@ -247,14 +247,21 @@ namespace VRPC.DiscordRPCManager.Activities
             bool isVideo = IsVideo(albumName, releaseYear);
 
             VRPCGlobalData.MiscellaneousSongData["platform"] = "YouTube Music";
-            if (isVideo == true) { VRPCGlobalData.MiscellaneousSongData["isvideo"] = "true"; }
-            VRPCGlobalData.MiscellaneousSongData["songduration"] = songDuration ?? string.Empty;
+            if (isVideo == true)
+            {
+                VRPCGlobalData.MiscellaneousSongData["isvideo"] = "true";
+            }
+            else
+            {
+                VRPCGlobalData.MiscellaneousSongData["isvideo"] = "false";
+            }
 
             if (currentTimeInt == 0 && songDurationInt == 0)
             {
                 log.Write("[YouTube Music] Rich Presence timestamps are 0, not updating.");
                 return;
             }
+            VRPCGlobalData.MiscellaneousSongData["songduration"] = songDurationInt.ToString() ?? string.Empty;
             log.Write($"[YouTube Music] Rich Presence updated with {richPresence.Details} by {richPresence.State} at {richPresence.Timestamps.Start} to {richPresence.Timestamps.End}.");
 
             if (!string.IsNullOrEmpty(cleanSongName))
@@ -291,25 +298,11 @@ namespace VRPC.DiscordRPCManager.Activities
                 return;
             }
 
-            if (cleanSongName != songName)
+            if ((tempRichPresenceDetails != cleanSongName && tempRichPresenceStart != richPresence.Timestamps.Start) || (tempRichPresenceDetails != songName && tempRichPresenceStart != richPresence.Timestamps.Start))
             {
-                if (tempRichPresenceDetails != cleanSongName && tempRichPresenceStart != richPresence.Timestamps.Start)
-                {
-                    log.Write("[YouTube Music] Rich Presence update from song name or timestamp.");
-                    VRPCGlobalData.MiscellaneousSongData.Clear();
-                    VRPCGlobalEvents.SendForceUpdateRPEvent(delayRichPresence);
-                    return;
-                }
-            }
-            else
-            {
-                if (tempRichPresenceDetails != songName && tempRichPresenceStart != richPresence.Timestamps.Start)
-                {
-                    log.Write("[YouTube Music] Rich Presence update from song name or timestamp.");
-                    VRPCGlobalData.MiscellaneousSongData.Clear();
-                    VRPCGlobalEvents.SendForceUpdateRPEvent(delayRichPresence);
-                    return;
-                }
+                log.Write("[YouTube Music] Rich Presence update from song name or timestamp.");
+                VRPCGlobalEvents.SendForceUpdateRPEvent(delayRichPresence);
+                return;
             }
         }
     }

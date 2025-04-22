@@ -22,6 +22,8 @@ namespace VRPC.ListeningDataManager
         private static bool ErrorWritingToFile = true;
         private static DateTime LastDataUpdate;
 
+        private const int SAVE_THRESHOLD = 60;
+
         private const float MATCHING_TEXT_THRESHOLD = 0.9f;
 
         public class SongData
@@ -298,20 +300,20 @@ namespace VRPC.ListeningDataManager
 
                     if (string.IsNullOrEmpty(SongName) || string.IsNullOrEmpty(ArtistName)) { continue; }
 
-                    int songDuration = 6;
+                    int songDurationHeartbeat = 6;
                     if (VRPCGlobalData.MiscellaneousSongData.ContainsKey("songduration"))
                     {
-                        int.TryParse(VRPCGlobalData.MiscellaneousSongData["songduration"], out songDuration);
+                        int.TryParse(VRPCGlobalData.MiscellaneousSongData["songduration"], out songDurationHeartbeat);
                     }
 
                     // Song duration in this case would be the amount of seconds the listening data has
                     // before timing out (turning inactive).
-                    if (SongPlaying && ((DateTime.UtcNow - LastDataUpdate) < TimeSpan.FromSeconds(songDuration)))
+                    if (SongPlaying && ((DateTime.UtcNow - LastDataUpdate) < TimeSpan.FromSeconds(songDurationHeartbeat)))
                     {
                         activeSongInSeconds++;
                         log.Write($"[ListeningData - Heartbeat] {SongName} - {ArtistName} - {activeSongInSeconds} - Active");
                         SavingEnabled = true;
-                        if (activeSongInSeconds >= 60) { UpdateListeningDataFile(); }
+                        if (activeSongInSeconds >= SAVE_THRESHOLD) { UpdateListeningDataFile(); }
                         continue;
                     }
                     log.Write($"[ListeningData - Heartbeat] {SongName} - {ArtistName} - {activeSongInSeconds} - Inactive");

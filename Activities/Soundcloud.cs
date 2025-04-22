@@ -177,7 +177,6 @@ namespace VRPC.DiscordRPCManager.Activities
                 if (tempRichPresenceDetails != cleanSongName)
                 {
                     log.Write("[Soundcloud] Rich Presence update from song name");
-                    VRPCGlobalData.MiscellaneousSongData.Clear();
                     VRPCGlobalEvents.SendForceUpdateRPEvent();
                 }
             }
@@ -186,7 +185,6 @@ namespace VRPC.DiscordRPCManager.Activities
                 if (tempRichPresenceDetails != songName)
                 {
                     log.Write("[Soundcloud] Rich Presence update from song name");
-                    VRPCGlobalData.MiscellaneousSongData.Clear();
                     VRPCGlobalEvents.SendForceUpdateRPEvent();
                 }
             }
