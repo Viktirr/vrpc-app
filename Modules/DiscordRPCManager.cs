@@ -59,12 +59,16 @@ namespace VRPC.DiscordRPCManager
                         Start = DateTime.UtcNow
                     }
                 };
+
+                client.SkipIdenticalPresence = true;
+                
                 log.Write("[DiscordRPC] Discord RPC initialized successfully.");
             }
             catch (Exception e)
             {
                 log.Error($"[DiscordRPC] Error initializing Discord RPC: {e.Message + e.StackTrace}");
             }
+
 
             VRPCGlobalEvents.RPCEvent += (sender, e) =>
             {
@@ -112,6 +116,7 @@ namespace VRPC.DiscordRPCManager
 
         public void Dispose()
         {
+            client?.ClearPresence();
             client?.Dispose();
             log.Info("[DiscordRPC] Discord RPC disposed.");
         }

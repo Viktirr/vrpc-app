@@ -14,8 +14,9 @@ namespace VRPC.ListeningDataManager
         private static string PreviousSongName = string.Empty;
         private static string PreviousArtistName = string.Empty;
         private static int activeSongInSeconds = 0;
-        private static Log log = new Log();
         protected static bool SongPlaying = false;
+        private static bool richPresenceActive = false;
+        private static Log log = new Log();
 
         private static string filePath = VRPCSettings.ListeningDataPath;
         private static bool ErrorReadingFromFile = true;
@@ -181,7 +182,7 @@ namespace VRPC.ListeningDataManager
             {
                 log.Warn("[ListeningData] Couldn't read from file. Maybe the file is corrupted? Trying backup...");
                 string backupPath = VRPCSettings.ListeningDataBackupPath;
-                
+
                 if (File.Exists(backupPath))
                 {
                     try
@@ -314,6 +315,7 @@ namespace VRPC.ListeningDataManager
                         activeSongInSeconds++;
                         log.Write($"[ListeningData - Heartbeat] {SongName} - {ArtistName} - {activeSongInSeconds} - Active");
                         SavingEnabled = true;
+                        richPresenceActive = true;
                         if (activeSongInSeconds >= SAVE_THRESHOLD) { UpdateListeningDataFile(); }
                         continue;
                     }
@@ -322,6 +324,12 @@ namespace VRPC.ListeningDataManager
                     {
                         UpdateListeningDataFile();
                         SavingEnabled = false;
+                    }
+
+                    if ((DateTime.UtcNow - LastDataUpdate) > TimeSpan.FromSeconds(songDurationHeartbeat) && richPresenceActive == true && SongPlaying == true)
+                    {
+                        richPresenceActive = false;
+                        VRPCGlobalEvents.SendRichPresenceClearEvent();
                     }
                 }
                 return;
