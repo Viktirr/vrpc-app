@@ -1,7 +1,5 @@
-using System.Net.NetworkInformation;
 using System.Text.RegularExpressions;
-using VRPC.ListeningDataManager;
-using VRPC.Logging;
+using System.Text;
 
 namespace VRPC.Globals
 {
@@ -147,6 +145,46 @@ namespace VRPC.Globals
 
             return percentage;
         }
+
+        public static string TruncateToBytes(string input, int maxBytes, Encoding? encoding = null)
+        {
+            if (input == null)
+            {
+                return null;
+            }
+
+            if (maxBytes < 0)
+            {
+                throw new ArgumentOutOfRangeException(nameof(maxBytes), "Maximum bytes must be non-negative.");
+            }
+
+            if (maxBytes == 0)
+            {
+                return string.Empty;
+            }
+
+            encoding ??= Encoding.UTF8;
+
+            if (encoding.GetByteCount(input) <= maxBytes)
+            {
+                return input;
+            }
+
+            int byteCount = 0;
+            for (int i = 0; i < input.Length; i++)
+            {
+                int charByteCount = encoding.GetByteCount(input, i, 1);
+
+                if (byteCount + charByteCount > maxBytes)
+                {
+                    return input.Substring(0, i);
+                }
+
+                byteCount += charByteCount;
+            }
+
+            return input;
+        }
     }
 
     public static class VRPCGlobalEvents
@@ -168,7 +206,7 @@ namespace VRPC.Globals
             }
             else
             {
-                Thread t = new Thread(() => 
+                Thread t = new Thread(() =>
                 {
                     Thread.Sleep(delay);
                     RPForceUpdate?.Invoke(RPForceUpdate, EventArgs.Empty);
@@ -187,7 +225,7 @@ namespace VRPC.Globals
             }
             else
             {
-                Thread t = new Thread(() => 
+                Thread t = new Thread(() =>
                 {
                     Thread.Sleep(delay);
                     RPClear?.Invoke(RPClear, EventArgs.Empty);

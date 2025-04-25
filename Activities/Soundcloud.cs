@@ -135,6 +135,15 @@ namespace VRPC.DiscordRPCManager.Activities
 
             string cleanSongName = VRPCGlobalFunctions.RemoveArtistFromTitle(songName, artistName);
 
+            if (songName != null && songName.Length > 40)
+            {
+                cleanSongName = VRPCGlobalFunctions.TruncateToBytes(cleanSongName, 128, System.Text.Encoding.UTF8);
+            }
+            if (artistName != null && artistName.Length > 40)
+            {
+                artistName = VRPCGlobalFunctions.TruncateToBytes(artistName, 128, System.Text.Encoding.UTF8);
+            }
+
             if (!string.IsNullOrEmpty(cleanSongName))
             {
                 richPresence.Details = cleanSongName;

@@ -204,8 +204,14 @@ namespace VRPC.DiscordRPCManager.Activities
             string? releaseYear = VRPCGlobalData.RPCDataLegacyDictionary.GetValueOrDefault(8);
             string? currentTime = VRPCGlobalData.RPCDataLegacyDictionary.GetValueOrDefault(9);
 
-            if (songName != null && songName.Length > 56) { songName = songName.Substring(0, 56); }
-            if (artistName != null && artistName.Length > 56) { artistName = artistName.Substring(0, 56); }
+            if (songName != null && songName.Length > 40)
+            {
+                songName = VRPCGlobalFunctions.TruncateToBytes(songName, 128, System.Text.Encoding.UTF8);
+            }
+            if (artistName != null && artistName.Length > 40)
+            {
+                artistName = VRPCGlobalFunctions.TruncateToBytes(artistName, 128, System.Text.Encoding.UTF8);
+            }
 
             string cleanSongName = "";
             try
