@@ -1,5 +1,6 @@
 using System.Diagnostics;
 using System.Text;
+using VRPC.NativeMessasing;
 
 namespace VRPC.Lock
 {
@@ -33,7 +34,8 @@ namespace VRPC.Lock
         {
             if (CheckLockFileExist())
             {
-                Environment.Exit(-1);
+                NativeMessagingCommands.SendLockExit();
+                Environment.Exit(0);
             }
             else
             {

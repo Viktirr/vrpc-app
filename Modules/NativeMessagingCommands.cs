@@ -139,5 +139,20 @@ namespace VRPC.NativeMessasing
             }
             return;
         }
+
+        public static void SendLockExit()
+        {
+            Log log = new Log();
+
+            try
+            {
+                log.Write($"[NativeMessagingCommands] Sending lock file reason of application exit.");
+                NativeMessaging.SendMessage(NativeMessaging.EncodeMessage($"PROGRAM: LOCK"));
+            }
+            catch (Exception e)
+            {
+                log.Write($"[NativeMessagingCommands] Failed to send file reason of application exit. Exception: {e.Data}");
+            }
+        }
     }
 }
