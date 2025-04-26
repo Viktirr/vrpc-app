@@ -9,7 +9,7 @@ namespace VRPC.Globals
         public static Dictionary<int, string> RPCDataLegacyDictionary = new Dictionary<int, string>();
         public static string? RPCDataLegacyString;
 
-        public static string appVersion = "1.00dev";
+        public static string appVersion = "1.00";
         public static string appName = "VRPCApp";
         public static string exeName = "VRPC.exe";
 
