@@ -8,9 +8,10 @@ using VRPC.Packaging;
 
 class Program
 {
-    public static bool runningOnBrowser = false;
-
     private static Log log = new Log();
+    private static VRPC.Lock.Lock _lock = new VRPC.Lock.Lock();
+
+    public static bool runningOnBrowser = false;
     public static bool isDiscordRPCRunning = false;
     public static bool isReceivingRPCData = false;
     private static string currentService = "";
@@ -57,6 +58,8 @@ class Program
         // We make 2 tries to start Discord RPC in case the user started a new tab/refreshed the page.
         if (messageDictionary[1].Contains("Opened"))
         {
+            if (currentService == "YouTube Music" && VRPCSettings.settingsData.EnableYouTubeMusic == false) { return; }
+            if (currentService == "Soundcloud" && VRPCSettings.settingsData.EnableSoundcloud == false) { return; }
             bool OpenDiscordRPCSuccess = OpenDiscordRPC();
             if (!OpenDiscordRPCSuccess) { Thread.Sleep(2000); OpenDiscordRPC(); return; }
         }
@@ -145,6 +148,7 @@ class Program
         ListeningData.Heartbeat(listeningDataCancellationToken, ShutdownRequested);
     }
 
+    // Show install/uninstall prompt if the user starts the program as standalone
     static void UseGUI(string[] args)
     {
         bool isUninstall = false;
@@ -152,12 +156,13 @@ class Program
 
         string roamingAppDataPath = Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData);
         string appNamePath = Path.Combine(roamingAppDataPath, VRPCGlobalData.appName);
+        string binPath = Path.Combine(appNamePath, "bin");
 
         string sourceFilePath = AppContext.BaseDirectory;
 
         if (Directory.Exists(appNamePath) && !appNamePath.Contains(sourceFilePath))
         {
-            if (File.Exists(Path.Combine(appNamePath, "VRPC.exe")))
+            if (File.Exists(Path.Combine(binPath, "VRPC.exe")))
             {
                 isUninstallTemp = true;
                 PackagingGlobals.uninstallString = $"\n\nPLEASE READ\nYou were launched to the uninstaller because the application is already installed. If this is a mistake, delete the folder {appNamePath} and relaunch the installer.\n\nUPDATES:\nIf you're updating to a new version, first select Uninstall below then relaunch the installer.";
@@ -192,6 +197,11 @@ class Program
         }
     }
 
+    public static void RemoveLock()
+    {
+        _lock.RemoveLock();
+    }
+
     static void Main(string[] args)
     {
         foreach (string arg in args)
@@ -210,7 +220,7 @@ class Program
         {
             Console.Clear();
             Console.WriteLine($"Running {VRPCGlobalData.appName} version {VRPCGlobalData.appVersion}");
-            Console.WriteLine($"Please don't close the console (this black box) while the GUI is present or while the application is installing/uninstalling.\n");
+            Console.WriteLine($"Please don't close the console (this black box) while the UI is present or while the application is installing/uninstalling.\n");
             UseGUI(args);
             return;
         }
@@ -220,6 +230,8 @@ class Program
         log.Write("[Main] Reading Settings from file.");
 
         if (VRPCSettings.settingsData.DisableClearingLogs == false) { log.Clear(); }
+
+        _lock.Create();
 
         Thread nativeMessagingThread = new Thread(UseNativeMessaging);
         nativeMessagingThread.Start();

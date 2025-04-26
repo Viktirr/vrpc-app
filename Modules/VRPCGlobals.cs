@@ -1,6 +1,5 @@
-using System.Net.NetworkInformation;
 using System.Text.RegularExpressions;
-using VRPC.Logging;
+using System.Text;
 
 namespace VRPC.Globals
 {
@@ -10,7 +9,7 @@ namespace VRPC.Globals
         public static Dictionary<int, string> RPCDataLegacyDictionary = new Dictionary<int, string>();
         public static string? RPCDataLegacyString;
 
-        public static string appVersion = "0.81.1";
+        public static string appVersion = "1.00";
         public static string appName = "VRPCApp";
         public static string exeName = "VRPC.exe";
 
@@ -146,6 +145,46 @@ namespace VRPC.Globals
 
             return percentage;
         }
+
+        public static string TruncateToBytes(string input, int maxBytes, Encoding? encoding = null)
+        {
+            if (input == null)
+            {
+                return null;
+            }
+
+            if (maxBytes < 0)
+            {
+                throw new ArgumentOutOfRangeException(nameof(maxBytes), "Maximum bytes must be non-negative.");
+            }
+
+            if (maxBytes == 0)
+            {
+                return string.Empty;
+            }
+
+            encoding ??= Encoding.UTF8;
+
+            if (encoding.GetByteCount(input) <= maxBytes)
+            {
+                return input;
+            }
+
+            int byteCount = 0;
+            for (int i = 0; i < input.Length; i++)
+            {
+                int charByteCount = encoding.GetByteCount(input, i, 1);
+
+                if (byteCount + charByteCount > maxBytes)
+                {
+                    return input.Substring(0, i);
+                }
+
+                byteCount += charByteCount;
+            }
+
+            return input;
+        }
     }
 
     public static class VRPCGlobalEvents
@@ -167,12 +206,29 @@ namespace VRPC.Globals
             }
             else
             {
-                Log log = new Log();
-                
-                Thread t = new Thread(() => 
+                Thread t = new Thread(() =>
                 {
                     Thread.Sleep(delay);
                     RPForceUpdate?.Invoke(RPForceUpdate, EventArgs.Empty);
+                });
+                t.Start();
+            }
+        }
+
+        public static event EventHandler? RPClear;
+
+        public static void SendRichPresenceClearEvent(int delay = 0)
+        {
+            if (delay == 0)
+            {
+                RPClear?.Invoke(RPClear, EventArgs.Empty);
+            }
+            else
+            {
+                Thread t = new Thread(() =>
+                {
+                    Thread.Sleep(delay);
+                    RPClear?.Invoke(RPClear, EventArgs.Empty);
                 });
                 t.Start();
             }

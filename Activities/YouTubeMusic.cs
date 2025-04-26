@@ -8,14 +8,14 @@ namespace VRPC.DiscordRPCManager.Activities
 {
     class YouTubeMusic : SetDiscordActivity
     {
-        private const int delayRichPresence = 2000;
+        private const int delayRichPresence = 0;
+        static Log log = new Log();
         private static void UpdateListeningData(string? songName, string? artistName, string? songStatus)
         {
             if (songName == null || songName == "Browsing" || songName == "" || artistName == null || songStatus == null) { return; }
             bool songPlaying = songStatus == "Playing" ? true : false;
             ListeningData.UpdateListeningData(songName, artistName, songPlaying);
         }
-        static Log log = new Log();
 
         private static bool IsNull(string? str)
         {
@@ -65,7 +65,7 @@ namespace VRPC.DiscordRPCManager.Activities
         }
         private static void UpdateStatus(string? songStatus, int songInSecondsCurrent, string watermarkString)
         {
-            try
+            if (VRPCSettings.settingsData.ShowPlayingStatus)
             {
                 if (songStatus != "Playing" && songStatus != "Paused")
                 {
@@ -85,78 +85,47 @@ namespace VRPC.DiscordRPCManager.Activities
                     richPresence.Timestamps.End = DateTime.UtcNow;
                 }
             }
-            catch { }
-        }
-
-        private static (int songInSecondsCurrent, int songInSeconds, string[] songDuration) UpdateTimestamps(string? songDurationRaw)
-        {
-            string[] songDuration = Array.Empty<string>();
-
-            int songInSecondsCurrent = 0;
-            int songInSeconds = 0;
-
-            try
+            else
             {
-                if (songDurationRaw != null)
+                try
                 {
-                    songDuration = songDurationRaw.Split("/");
-                }
-            }
-            catch (Exception e)
-            {
-                log.Error($"[Youtube Music] Couldn't split the song duration into two parts. Exception {e.Data}");
-            }
-
-            try
-            {
-                for (int i = 0; i < songDuration.Length; i++)
-                {
-                    string currentDuration = songDuration[i];
-                    string[] timeSeparator = currentDuration.Split(":");
-
-                    if (i == 0)
+                    if (songStatus != "Playing" && songStatus != "Paused")
                     {
-                        for (int j = timeSeparator.Length - 1; j >= 0; j--)
+                        richPresence.Assets.SmallImageKey = "";
+                        richPresence.Assets.SmallImageText = "";
+                    }
+                    if (songStatus == "Playing")
+                    {
+                        if (VRPCGlobalData.MiscellaneousSongData.ContainsKey("status"))
                         {
-                            if (j == 1)
+                            if (songStatus != VRPCGlobalData.MiscellaneousSongData["status"])
                             {
-                                songInSecondsCurrent = int.Parse(timeSeparator[j]);
-                            }
-                            if (j == 0)
-                            {
-                                songInSecondsCurrent = songInSecondsCurrent + int.Parse(timeSeparator[j]) * 60;
+                                VRPCGlobalEvents.SendForceUpdateRPEvent(delayRichPresence);
                             }
                         }
+                        VRPCGlobalData.MiscellaneousSongData["status"] = "Playing";
+                        richPresence.Assets.SmallImageKey = "";
+                        richPresence.Assets.SmallImageText = "";
                     }
-
-                    if (i == 1)
+                    else if (songStatus == "Paused")
                     {
-                        for (int j = timeSeparator.Length - 1; j >= 0; j--)
-                        {
-                            if (j == 1)
-                            {
-                                songInSeconds = int.Parse(timeSeparator[j]);
-                            }
-                            if (j == 0)
-                            {
-                                songInSeconds = songInSeconds + int.Parse(timeSeparator[j]) * 60;
-                            }
-                        }
+                        VRPCGlobalData.MiscellaneousSongData["status"] = "Paused";
+                        VRPCGlobalEvents.SendRichPresenceClearEvent(delayRichPresence);
                     }
                 }
+                catch { }
             }
-            catch (Exception e) { log.Warn($"[Youtube Music] Couldn't get the song duration, will use a previously set value. Error: {e.Data}"); }
-
-            return (songInSecondsCurrent, songInSeconds, songDuration);
         }
-
 
         private static void UpdateAlbum(string? albumName, string? releaseYear, bool isVideo = false)
         {
-            if (ListeningDataRPC.RPCListeningDataRunning == true) { return; }
             try
             {
-                if (IsNull(albumName) && IsNull(releaseYear) || isVideo == true)
+                if (VRPCSettings.settingsData.ShowcaseDataToRPC == true)
+                {
+                    ListeningDataRPC.ShowcaseTimeListened();
+                }
+                else if (IsNull(albumName) && IsNull(releaseYear) || isVideo == true)
                 {
                     richPresence.Assets.LargeImageText = "Listening on YouTube Music";
                 }
@@ -227,22 +196,22 @@ namespace VRPC.DiscordRPCManager.Activities
             catch { log.Write("[YouTube Music] Something went wrong upon setting Rich Presence to Browsing."); }
 
             string artistName = VRPCGlobalData.RPCDataLegacyDictionary.GetValueOrDefault(2, "");
-            string? songDurationRaw = VRPCGlobalData.RPCDataLegacyDictionary.GetValueOrDefault(3);
+            string? songDuration = VRPCGlobalData.RPCDataLegacyDictionary.GetValueOrDefault(3);
             string? songStatus = VRPCGlobalData.RPCDataLegacyDictionary.GetValueOrDefault(4);
             string? songId = VRPCGlobalData.RPCDataLegacyDictionary.GetValueOrDefault(5);
             string? smallSongBanner = VRPCGlobalData.RPCDataLegacyDictionary.GetValueOrDefault(6);
             string? albumName = VRPCGlobalData.RPCDataLegacyDictionary.GetValueOrDefault(7);
             string? releaseYear = VRPCGlobalData.RPCDataLegacyDictionary.GetValueOrDefault(8);
+            string? currentTime = VRPCGlobalData.RPCDataLegacyDictionary.GetValueOrDefault(9);
 
-            if (songName != null && songName.Length > 56) { songName = songName.Substring(0, 56); }
-            if (artistName != null && artistName.Length > 56) { artistName = artistName.Substring(0, 56); }
-            if (songDurationRaw == null) { songDurationRaw = ""; }
-
-            int songInSecondsCurrent;
-            int songInSeconds;
-            string[] songDuration;
-
-            (songInSecondsCurrent, songInSeconds, songDuration) = UpdateTimestamps(songDurationRaw);
+            if (songName != null && songName.Length > 40)
+            {
+                songName = VRPCGlobalFunctions.TruncateToBytes(songName, 128, System.Text.Encoding.UTF8);
+            }
+            if (artistName != null && artistName.Length > 40)
+            {
+                artistName = VRPCGlobalFunctions.TruncateToBytes(artistName, 128, System.Text.Encoding.UTF8);
+            }
 
             string cleanSongName = "";
             try
@@ -251,57 +220,98 @@ namespace VRPC.DiscordRPCManager.Activities
                 {
                     cleanSongName = VRPCGlobalFunctions.RemoveArtistFromTitle(songName, artistName);
                 }
-
-                if (!string.IsNullOrEmpty(cleanSongName))
-                {
-                    richPresence.Details = cleanSongName;
-                }
-                else if (!string.IsNullOrEmpty(songName))
-                {
-                    richPresence.Details = songName;
-                }
-
-                if (!string.IsNullOrEmpty(artistName))
-                {
-                    richPresence.State = artistName;
-                }
             }
             catch { log.Write("[YouTube Music] Something went wrong setting artist and song name to Rich Presence"); }
 
+            int currentTimeInt = 0;
+            int songDurationInt = 0;
+
             try
             {
-                if (songDuration[0] != null || songDuration[1] != null)
+                if (currentTime != "NaN" || currentTime != null)
                 {
-                    richPresence.Timestamps.Start = DateTime.UtcNow - TimeSpan.FromSeconds(songInSecondsCurrent);
-                    richPresence.Timestamps.End = DateTime.UtcNow + TimeSpan.FromSeconds(songInSeconds - songInSecondsCurrent);
+                    currentTimeInt = string.IsNullOrEmpty(currentTime) ? 0 : int.Parse(currentTime);
+                    songDurationInt = string.IsNullOrEmpty(songDuration) ? 0 : int.Parse(songDuration);
                 }
             }
-            catch { log.Write("[YouTube Music] Something went wrong setting timestamps to Rich Presence"); }
+            catch //(Exception ex)
+            {
+                // No need to show this as it will fail most of the time anyway.
+                // log.Warn($"[YouTube Music] Something went wrong parsing currentTime and songDuration. Exception {ex.Data}");
+            }
+
+            try
+            {
+                if (songDurationInt != 0)
+                {
+                    richPresence.Timestamps.Start = DateTime.UtcNow - TimeSpan.FromSeconds(currentTimeInt);
+                    richPresence.Timestamps.End = DateTime.UtcNow + TimeSpan.FromSeconds(songDurationInt - currentTimeInt);
+                }
+            }
+            catch
+            {
+                log.Write("[YouTube Music] Something went wrong setting timestamps to Rich Presence");
+            }
 
             bool isVideo = IsVideo(albumName, releaseYear);
+
+            VRPCGlobalData.MiscellaneousSongData["platform"] = "YouTube Music";
+            if (isVideo == true)
+            {
+                VRPCGlobalData.MiscellaneousSongData["isvideo"] = "true";
+            }
+            else
+            {
+                VRPCGlobalData.MiscellaneousSongData["isvideo"] = "false";
+            }
+
+            if (currentTimeInt == 0 && songDurationInt == 0)
+            {
+                log.Write("[YouTube Music] Rich Presence timestamps are 0, not updating.");
+                return;
+            }
+            VRPCGlobalData.MiscellaneousSongData["songduration"] = songDurationInt.ToString() ?? string.Empty;
+            log.Write($"[YouTube Music] Rich Presence template with {richPresence.Details} by {richPresence.State} at {richPresence.Timestamps.Start} to {richPresence.Timestamps.End}.");
+
+            if (!string.IsNullOrEmpty(cleanSongName))
+            {
+                richPresence.Details = cleanSongName;
+            }
+            else if (!string.IsNullOrEmpty(songName))
+            {
+                richPresence.Details = songName;
+            }
+
+            if (!string.IsNullOrEmpty(artistName))
+            {
+                richPresence.State = artistName;
+            }
+
             UpdateListeningData(songName, artistName, songStatus);
-            UpdateStatus(songStatus, songInSecondsCurrent, watermarkString);
+            UpdateStatus(songStatus, currentTimeInt, watermarkString);
             UpdateImage(songId, smallSongBanner);
             UpdateAlbum(albumName, releaseYear, isVideo);
             UpdateButton(songId);
 
-            VRPCGlobalData.MiscellaneousSongData["platform"] = "YouTube Music";
-            if (isVideo == true) { VRPCGlobalData.MiscellaneousSongData["isvideo"] = "true"; }
-
-            if (tempRichPresenceStart > DateTime.UtcNow - TimeSpan.FromSeconds(songInSecondsCurrent) + TimeSpan.FromSeconds(timestampTolerance) || tempRichPresenceStart < DateTime.UtcNow - TimeSpan.FromSeconds(songInSecondsCurrent) - TimeSpan.FromSeconds(timestampTolerance))
+            if (tempRichPresenceStart > DateTime.UtcNow - TimeSpan.FromSeconds(currentTimeInt) + TimeSpan.FromSeconds(timestampTolerance) || tempRichPresenceStart < DateTime.UtcNow - TimeSpan.FromSeconds(currentTimeInt) - TimeSpan.FromSeconds(timestampTolerance))
             {
+                log.Write("[YouTube Music] Rich Presence update from Timestamp");
                 VRPCGlobalEvents.SendForceUpdateRPEvent(delayRichPresence);
                 return;
             }
-            if (songStatus + watermarkString != tempRichPresenceSmallImageText) { VRPCGlobalEvents.SendForceUpdateRPEvent(delayRichPresence); return; }
 
-            if (cleanSongName != songName)
+            if (songStatus + watermarkString != tempRichPresenceSmallImageText && VRPCSettings.settingsData.ShowPlayingStatus)
             {
-                if (tempRichPresenceDetails != cleanSongName && tempRichPresenceStart != richPresence.Timestamps.Start) { VRPCGlobalData.MiscellaneousSongData.Clear(); VRPCGlobalEvents.SendForceUpdateRPEvent(delayRichPresence); return; }
+                log.Write("[YouTube Music] Rich Presence update from status");
+                VRPCGlobalEvents.SendForceUpdateRPEvent(delayRichPresence);
+                return;
             }
-            else
+
+            if ((tempRichPresenceDetails != cleanSongName && tempRichPresenceStart != richPresence.Timestamps.Start) || (tempRichPresenceDetails != songName && tempRichPresenceStart != richPresence.Timestamps.Start))
             {
-                if (tempRichPresenceDetails != songName && tempRichPresenceStart != richPresence.Timestamps.Start) { VRPCGlobalData.MiscellaneousSongData.Clear(); VRPCGlobalEvents.SendForceUpdateRPEvent(delayRichPresence); return; }
+                log.Write("[YouTube Music] Rich Presence update from song name or timestamp.");
+                VRPCGlobalEvents.SendForceUpdateRPEvent(delayRichPresence);
+                return;
             }
         }
     }

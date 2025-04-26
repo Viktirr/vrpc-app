@@ -14,17 +14,20 @@ namespace VRPC.ListeningDataManager
         private static string PreviousSongName = string.Empty;
         private static string PreviousArtistName = string.Empty;
         private static int activeSongInSeconds = 0;
-        private static Log log = new Log();
         protected static bool SongPlaying = false;
+        private static bool richPresenceActive = false;
+        private static Log log = new Log();
 
         private static string filePath = VRPCSettings.ListeningDataPath;
         private static bool ErrorReadingFromFile = true;
         private static bool ErrorWritingToFile = true;
         private static DateTime LastDataUpdate;
 
-        private static float matchingTextThreshold = 0.8f;
+        private const int SAVE_THRESHOLD = 60;
 
-        protected class SongData
+        private const float MATCHING_TEXT_THRESHOLD = 0.9f;
+
+        public class SongData
         {
             // "TotalListened": 0
             // "SongsData": {
@@ -32,6 +35,7 @@ namespace VRPC.ListeningDataManager
             // }
             public string versionNumber { get; set; } = VRPCGlobalData.appVersion;
             public int TotalListened { get; set; } = 0;
+            public int CreationDate { get; set; } = (int)DateTimeOffset.UtcNow.ToUnixTimeSeconds();
             public Dictionary<string, Dictionary<string, string>> SongsData { get; set; } = new Dictionary<string, Dictionary<string, string>>();
 
             public void AddSong(string songName, string artistName, int songTotalSeconds, bool recursive = false)
@@ -55,6 +59,9 @@ namespace VRPC.ListeningDataManager
 
                 string platform = "Unknown";
                 if (VRPCGlobalData.MiscellaneousSongData.ContainsKey("platform")) { platform = VRPCGlobalData.MiscellaneousSongData["platform"]; }
+
+                string songDuration = "0";
+                if (VRPCGlobalData.MiscellaneousSongData.ContainsKey("songduration")) { songDuration = VRPCGlobalData.MiscellaneousSongData["songduration"]; }
 
                 if (SongsData.ContainsKey(key))
                 {
@@ -95,8 +102,9 @@ namespace VRPC.ListeningDataManager
                     SongsData[key]["lastplatformlistenedon"] = platform;
                     if (!SongsData[key].ContainsKey("isvideo")) { SongsData[key]["isvideo"] = isVideo; }
                     if (!SongsData[key].ContainsKey("songurl")) { SongsData[key]["songurl"] = songURL; }
+                    SongsData[key]["songduration"] = songDuration;
 
-                    if (SongsData[key].ContainsKey("songurl")) { if(SongsData[key]["songurl"].Contains("Unknown")) { SongsData[key]["songurl"] = songURL; } }
+                    if (SongsData[key].ContainsKey("songurl")) { if (SongsData[key]["songurl"].Contains("Unknown")) { SongsData[key]["songurl"] = songURL; } }
 
                     SongsData[key]["lastplayed"] = currentTime.ToString();
                 }
@@ -107,7 +115,7 @@ namespace VRPC.ListeningDataManager
                         float currentMatchingPercentage1 = VRPCGlobalFunctions.PercentageMatchingString(key, currentKey);
                         float currentMatchingPercentage2 = VRPCGlobalFunctions.PercentageMatchingString(currentKey, key);
                         float currentMatchingPercentage = (currentMatchingPercentage1 + currentMatchingPercentage2) / 2;
-                        if (currentMatchingPercentage >= matchingTextThreshold)
+                        if (currentMatchingPercentage >= MATCHING_TEXT_THRESHOLD)
                         {
                             log.Info($"[ListeningData] Found {key} in {currentKey} with {currentMatchingPercentage * 100} percent matching. Using the latter to save values instead.");
 
@@ -152,10 +160,11 @@ namespace VRPC.ListeningDataManager
                         { "daymostplayed", (currentTime / 86400).ToString() },
                         { "daymostplayedtimelistened", songTotalSeconds.ToString() },
                         { "isvideo", isVideo },
-                        { "songurl", songURL }
+                        { "songurl", songURL },
+                        { "songduration", "0" }
                     };
                 }
-                
+
                 VRPCGlobalData.LastListeningDataStats = SongsData[key];
             }
         }
@@ -171,7 +180,36 @@ namespace VRPC.ListeningDataManager
             }
             catch
             {
-                log.Warn("[ListeningData] Couldn't read from file. Maybe the file is corrupted?");
+                log.Warn("[ListeningData] Couldn't read from file. Maybe the file is corrupted? Trying backup...");
+                string backupPath = VRPCSettings.ListeningDataBackupPath;
+
+                if (File.Exists(backupPath))
+                {
+                    try
+                    {
+                        string json = File.ReadAllText(backupPath, Encoding.UTF8);
+                        SongData? backupSongData = JsonSerializer.Deserialize<SongData>(json);
+
+                        if (backupSongData != null)
+                        {
+                            log.Info("[ListeningData] Backup is valid. Using backup...");
+                            File.WriteAllText(filePath, json, Encoding.UTF8);
+                            songData = backupSongData;
+                            ErrorReadingFromFile = false;
+                        }
+                    }
+                    catch
+                    {
+                        log.Error("[ListeningData] Couldn't read from backup file. Creating new file...");
+                        songData = new SongData();
+                        ErrorReadingFromFile = true;
+                    }
+                }
+                else
+                {
+                    log.Error("[ListeningData] Backup doesn't exist. Creating new file...");
+                    songData = new SongData();
+                }
                 ErrorReadingFromFile = true;
                 return songData;
             }
@@ -207,8 +245,8 @@ namespace VRPC.ListeningDataManager
         public static void UpdateListeningDataFile()
         {
             if (VRPCSettings.settingsData.EnableListeningData == false) { activeSongInSeconds = 0; return; }
-            SongData songData = ReadDataFile();
             bool fileExists = CheckDataFileExists();
+            SongData songData = ReadDataFile();
             if (!fileExists)
             {
                 songData = UpdateSongData(songData);
@@ -252,25 +290,6 @@ namespace VRPC.ListeningDataManager
             PreviousArtistName = ArtistName;
         }
 
-        private static int RPCCounter = 0;
-        private static int RPCDelayEarliest = 20;
-        private static int RPCDelayLatest = 450;
-        private static int RPCTrigger = new Random().Next(RPCDelayEarliest, RPCDelayLatest);
-
-        public static void UpdateListeningDataRPC()
-        {
-            if (VRPCSettings.settingsData.ShowcaseDataToRPC == false) { return; }
-
-            if (RPCCounter >= RPCTrigger)
-            {
-                Thread RPCThread = new Thread(() => ListeningDataRPC.UpdateRPC());
-                RPCThread.Start();
-                RPCCounter = -ListeningDataRPC.duration;
-                RPCTrigger = new Random().Next(RPCDelayEarliest, RPCDelayLatest);
-            }
-            else { RPCCounter++; }
-        }
-
         public static void Heartbeat(CancellationToken token, bool ShutdownRequested = false)
         {
             bool SavingEnabled = true;
@@ -281,15 +300,23 @@ namespace VRPC.ListeningDataManager
                 {
                     Thread.Sleep(1000);
 
-                    UpdateListeningDataRPC();
-
                     if (string.IsNullOrEmpty(SongName) || string.IsNullOrEmpty(ArtistName)) { continue; }
-                    if (SongPlaying && ((DateTime.UtcNow - LastDataUpdate) < TimeSpan.FromSeconds(6)))
+
+                    int songDurationHeartbeat = 6;
+                    if (VRPCGlobalData.MiscellaneousSongData.ContainsKey("songduration"))
+                    {
+                        int.TryParse(VRPCGlobalData.MiscellaneousSongData["songduration"], out songDurationHeartbeat);
+                    }
+
+                    // Song duration in this case would be the amount of seconds the listening data has
+                    // before timing out (turning inactive).
+                    if (SongPlaying && ((DateTime.UtcNow - LastDataUpdate) < TimeSpan.FromSeconds(songDurationHeartbeat)))
                     {
                         activeSongInSeconds++;
                         log.Write($"[ListeningData - Heartbeat] {SongName} - {ArtistName} - {activeSongInSeconds} - Active");
                         SavingEnabled = true;
-                        if (activeSongInSeconds >= 60) { UpdateListeningDataFile(); }
+                        richPresenceActive = true;
+                        if (activeSongInSeconds >= SAVE_THRESHOLD) { UpdateListeningDataFile(); }
                         continue;
                     }
                     log.Write($"[ListeningData - Heartbeat] {SongName} - {ArtistName} - {activeSongInSeconds} - Inactive");
@@ -297,6 +324,12 @@ namespace VRPC.ListeningDataManager
                     {
                         UpdateListeningDataFile();
                         SavingEnabled = false;
+                    }
+
+                    if ((DateTime.UtcNow - LastDataUpdate) > TimeSpan.FromSeconds(songDurationHeartbeat) && richPresenceActive == true && SongPlaying == true)
+                    {
+                        richPresenceActive = false;
+                        VRPCGlobalEvents.SendRichPresenceClearEvent();
                     }
                 }
                 return;

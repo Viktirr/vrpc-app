@@ -45,8 +45,8 @@ namespace VRPC.DiscordRPCManager
                 richPresence = new RichPresence()
                 {
                     Type = DiscordRPC.ActivityType.Listening,
-                    Details = "---",
-                    State = "---",
+                    Details = "",
+                    State = "",
                     Assets = new Assets()
                     {
                         LargeImageKey = "",
@@ -59,12 +59,16 @@ namespace VRPC.DiscordRPCManager
                         Start = DateTime.UtcNow
                     }
                 };
+
+                client.SkipIdenticalPresence = true;
+                
                 log.Write("[DiscordRPC] Discord RPC initialized successfully.");
             }
             catch (Exception e)
             {
                 log.Error($"[DiscordRPC] Error initializing Discord RPC: {e.Message + e.StackTrace}");
             }
+
 
             VRPCGlobalEvents.RPCEvent += (sender, e) =>
             {
@@ -84,20 +88,35 @@ namespace VRPC.DiscordRPCManager
 
             VRPCGlobalEvents.RPForceUpdate += (sender, e) =>
             {
+                log.Write("[DiscordRPC] Discord RPC force update called.");
                 try
                 {
                     client.SetPresence(richPresence);
-                    log.Info($"[DiscordRPC] Discord Rich Presence forcibly updated. Now {richPresence.Type} {richPresence.Details} by {richPresence.State}");
+                    log.Info($"[DiscordRPC] Discord Rich Presence updated. Now {richPresence.Type} {richPresence.Details} by {richPresence.State} at {richPresence.Timestamps.Start} to {richPresence.Timestamps.End}.");
                 }
                 catch (Exception ex)
                 {
-                    log.Error($"[DiscordRPC] Couldn't forcibly update rich presence: {ex.Message}");
+                    log.Error($"[DiscordRPC] Couldn't update rich presence: {ex.Message}");
+                }
+            };
+
+            VRPCGlobalEvents.RPClear += (sender, e) =>
+            {
+                try
+                {
+                    client.ClearPresence();
+                    log.Info($"[DiscordRPC] Discord Rich Presence removed.");
+                }
+                catch (Exception ex)
+                {
+                    log.Error($"[DiscordRPC] Couldn't clear rich presence: {ex.Message}");
                 }
             };
         }
 
         public void Dispose()
         {
+            client?.ClearPresence();
             client?.Dispose();
             log.Info("[DiscordRPC] Discord RPC disposed.");
         }
