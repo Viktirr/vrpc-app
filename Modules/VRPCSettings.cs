@@ -93,7 +93,7 @@ namespace VRPC.Configuration
                 { "InternalName", "ShowcaseDataToRPC" },
                 { "DisplayName", "Show Time Listened on RPC" },
                 { "Description", "Show 'Listened for x hours' on Discord when listening to a song." },
-                { "Visibility", "Shown" },
+                { "Visibility", "Hidden" },
                 { "Type", "bool" }  
             };
             
