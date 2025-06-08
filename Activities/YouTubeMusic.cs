@@ -127,28 +127,57 @@ namespace VRPC.DiscordRPCManager.Activities
         {
             try
             {
-                if (VRPCSettings.settingsData.ShowcaseDataToRPC == true)
+                if (VRPCSettings.settingsData.ShowcaseDataToRPC)
                 {
                     ListeningDataRPC.ShowcaseTimeListened();
+                    return;
                 }
-                else if (IsNull(albumName) && IsNull(releaseYear) || isVideo == true)
+
+                if (isVideo)
                 {
                     richPresence.Assets.LargeImageText = "Listening on YouTube Music";
+                    return;
                 }
-                else if (IsNull(releaseYear))
+
+                bool showYearSetting = VRPCSettings.settingsData.EnableReleaseYear;
+                bool albumExist = !IsNull(albumName);
+                bool yearExist = !IsNull(releaseYear);
+
+                if (albumExist && yearExist)
+                {
+                    if (showYearSetting)
+                    {
+                        richPresence.Assets.LargeImageText = $"{albumName} | {releaseYear}";
+                    }
+                    else
+                    {
+                        richPresence.Assets.LargeImageText = $"{albumName}";
+                    }
+                }
+                else if (albumExist)
                 {
                     richPresence.Assets.LargeImageText = $"{albumName}";
                 }
-                else if (IsNull(albumName))
+                else if (yearExist)
                 {
-                    richPresence.Assets.LargeImageText = $"{releaseYear}";
+                    if (showYearSetting)
+                    {
+                        richPresence.Assets.LargeImageText = $"{releaseYear}";
+                    }
+                    else
+                    {
+                        richPresence.Assets.LargeImageText = "Listening on YouTube Music";
+                    }
                 }
                 else
                 {
-                    richPresence.Assets.LargeImageText = $"{albumName} | {releaseYear}";
+                    richPresence.Assets.LargeImageText = "Listening on YouTube Music";
                 }
             }
-            catch { log.Write("[YouTube Music] Something went wrong updating album to Rich Presence."); }
+            catch (Exception e)
+            {
+                log.Write($"[YouTube Music] Something went wrong updating album to Rich Presence. Exception: {e.Message}");
+            }
         }
 
         private static void UpdateButton(string? songId)

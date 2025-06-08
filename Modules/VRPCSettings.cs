@@ -145,6 +145,14 @@ namespace VRPC.Configuration
                 { "Type", "bool" }  
             };
 
+            public static Dictionary<string, string> EnableReleaseYear { get; } = new Dictionary<string, string> {
+                { "InternalName", "EnableReleaseYear" },
+                { "DisplayName", "Show Release Year" },
+                { "Description", "Show the album's release year on Discord Rich Presence." },
+                { "Visibility", "Shown" },
+                { "Type", "bool" }
+            };
+
             public static Dictionary<string, string> CategorySoundcloud { get; } = new Dictionary<string, string> {
                 { "InternalName", "CategorySoundcloud" },
                 { "DisplayName", "Soundcloud" },
@@ -175,6 +183,7 @@ namespace VRPC.Configuration
                 { "EnableListeningData", EnableListeningData },
                 { "CategoryYouTubeMusic", CategoryYouTubeMusic },
                 { "EnableYouTubeMusic", EnableYouTubeMusic },
+                { "EnableReleaseYear", EnableReleaseYear },
                 { "CategorySoundcloud", CategorySoundcloud },
                 { "EnableSoundcloud", EnableSoundcloud }
             };
@@ -195,6 +204,7 @@ namespace VRPC.Configuration
             public bool EnableListeningData { get; set; } = true;
             public bool CategoryYouTubeMusic { get; set; } = true;
             public bool EnableYouTubeMusic { get; set; } = true;
+            public bool EnableReleaseYear { get; set; } = false;
             public bool CategorySoundcloud { get; set; } = true;
             public bool EnableSoundcloud { get; set; } = true;
         }
