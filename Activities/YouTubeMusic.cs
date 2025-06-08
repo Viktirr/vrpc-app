@@ -25,15 +25,21 @@ namespace VRPC.DiscordRPCManager.Activities
 
         private static bool IsVideo(string? albumName, string? releaseYear)
         {
-            if (albumName == null || releaseYear == null) { return true; }
-            try
+            if (albumName == null || releaseYear == null)
             {
-                if (albumName.Contains("view") && releaseYear.Contains("like"))
-                {
-                    return true;
-                }
+                return true;
             }
-            catch { }
+
+            if (albumName.Any(char.IsLetter) && releaseYear.Any(char.IsLetter))
+            {
+                return true;
+            }
+
+            if (albumName.Contains("view") && releaseYear.Contains("like"))
+            {
+                return true;
+            }
+            
             return false;
         }
 
