@@ -1,5 +1,4 @@
 using VRPC.Configuration;
-using VRPC.NativeMessasing;
 
 namespace VRPC.Logging
 {
@@ -15,7 +14,7 @@ namespace VRPC.Logging
             }
             catch (Exception e)
             {
-                NativeMessaging.SendMessage(NativeMessaging.EncodeMessage($"Clearing logs failed with exception {e.Data}."));
+                Console.Error.WriteLine($"Clearing logs failed: {e.Message}");
             }
         }
 
@@ -30,7 +29,7 @@ namespace VRPC.Logging
             }
             catch (Exception e)
             {
-                NativeMessaging.SendMessage(NativeMessaging.EncodeMessage($"Logging failed with exception {e.Data}. Data to log: {content}"));
+                Console.Error.WriteLine($"Logging failed: {e.Message}. Data to log: {content}");
             }
         }
 
@@ -44,7 +43,7 @@ namespace VRPC.Logging
             }
             catch (Exception e)
             {
-                NativeMessaging.SendMessage(NativeMessaging.EncodeMessage($"Logging (type: error) failed with exception {e.Data}. Data to log: {content}"));
+                Console.Error.WriteLine($"Logging (type: error) failed: {e.Message}. Data to log: {content}");
             }
         }
 
@@ -58,7 +57,7 @@ namespace VRPC.Logging
             }
             catch (Exception e)
             {
-                NativeMessaging.SendMessage(NativeMessaging.EncodeMessage($"Logging (type: warning) failed with exception {e.Data}. Data to log: {content}"));
+                Console.Error.WriteLine($"Logging (type: warning) failed: {e.Message}. Data to log: {content}");
             }
         }
 
@@ -72,7 +71,7 @@ namespace VRPC.Logging
             }
             catch (Exception e)
             {
-                NativeMessaging.SendMessage(NativeMessaging.EncodeMessage($"Logging (type: info) failed with exception {e.Data}. Data to log: {content}"));
+                Console.Error.WriteLine($"Logging (type: info) failed: {e.Message}. Data to log: {content}");
             }
         }
     }

@@ -5,18 +5,26 @@ Understanding the nature of security, I allow viewing the source code.
   
 Please note that this project is NOT open source, I allow viewing the code, however you're not able to modify it.
 
-The code quality should match the industry standard for newer projects ( /s ).
-
 ## Installation
 Installation is now one-click! Just run the application and click install. No administration privileges are required.  
 Otherwise, if you feel to manually install the application, feel free to follow the following steps.
 
 ### Application
+#### Windows
 - [Download](https://github.com/Viktirr/vrpc-app/releases) the (full-zipped version) application from the releases tab or build it yourself.
 - Unzip it
-- Run it (VRPC.exe)
+- Run it (`VRPC.exe`)
 
-### Native Messaging Support Installation
+#### Linux
+- [Download](https://github.com/Viktirr/vrpc-app/releases) the Linux package from the releases tab or build it yourself.
+- Unzip it
+- Run `./install-linux.sh`
+
+After installation it's safe to delete the unzipped files from your Downloads folder. Keep `install-linux.sh` (or re-download it) if you later want to uninstall (`./install-linux.sh uninstall`).  
+To update simply launch `install-linux.sh` on the new version.
+
+### Native Messaging Support Installation (Windows)
+The steps below are Windows-only if automatic installation fails.
 - Open regedit and head over to one of the following locations depending on the browser you use,
 for Firefox, the registry key is:
 `HKEY_LOCAL_MACHINE\SOFTWARE\Mozilla\NativeMessagingHosts`
@@ -26,7 +34,7 @@ for Firefox, the registry key is:
 
 ## Building
 Prerequisites:
-- C# .NET 8 (or higher)  
+- C# .NET 9 (or higher)  
 You may build the application by using one of the following:  
 `dotnet build`  
 This builds the debug version of the application.
@@ -39,6 +47,9 @@ This builds the release (single-file application - VRPC.exe) version of the appl
   
 `dotnet publish -c Release -r win-x64 --self-contained false /p:PublishSingleFile=false`  
 This builds the release (minimal) version of the application. Zipping is done manually.  
+  
+`dotnet publish -c Release -r linux-x64 --self-contained true /p:PublishSingleFile=false`  
+This builds the release version for Linux.
 
 ## Troubleshooting / IT DOESN'T WORK!!
 ### Native Messaging Permissions
