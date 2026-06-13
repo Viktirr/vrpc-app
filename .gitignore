@@ -1,6 +1,7 @@
 # Build files
 /bin/
 /obj/
+/dist/
 
 # VS Code
 *.code-workspace

@@ -33,7 +33,9 @@ namespace VRPC.DiscordRPCManager
             {
                 log = new Log();
             }
-            catch (Exception e) { Console.WriteLine($"Could not initialize logging. {e.Data}"); }
+            catch (Exception e) { Console.Error.WriteLine($"Could not initialize logging. {e.Message}"); }
+
+            EnsureDiscordSocketLinux();
 
             string currentServiceDiscordId;
             try { currentServiceDiscordId = serviceList[service]; DiscordRPCData.currentService = service; } catch (Exception e) { log.Warn($"[DiscordRPC] Couldn't get current service, using vrpc. Exception: {e.Data}. Service which was not found: {service}"); currentServiceDiscordId = serviceList["Default"]; }
@@ -118,6 +120,43 @@ namespace VRPC.DiscordRPCManager
         {
             client?.Dispose();
             log.Info("[DiscordRPC] Discord RPC disposed.");
+        }
+
+        // On Linux, discord-rpc-csharp only scans $XDG_RUNTIME_DIR/discord-ipc-N for the IPC socket.
+        // Flatpak and Snap Discord sandbox the socket into a subdirectory, so bridge it with a symlink
+        // before connecting. Native Discord already exposes the socket at the top level (no-op then).
+        private static void EnsureDiscordSocketLinux()
+        {
+            if (!OperatingSystem.IsLinux()) { return; }
+
+            string? runtimeDir = Environment.GetEnvironmentVariable("XDG_RUNTIME_DIR");
+            if (string.IsNullOrEmpty(runtimeDir)) { return; }
+
+            string link = Path.Combine(runtimeDir, "discord-ipc-0");
+            if (Path.Exists(link)) { return; }
+
+            string[] sandboxSubdirs =
+            {
+                "app/com.discordapp.Discord", // Flatpak
+                "snap.discord",               // Snap
+            };
+
+            foreach (string subdir in sandboxSubdirs)
+            {
+                string sandboxSocket = Path.Combine(runtimeDir, subdir, "discord-ipc-0");
+                if (!Path.Exists(sandboxSocket)) { continue; }
+
+                try
+                {
+                    File.CreateSymbolicLink(link, sandboxSocket);
+                    log.Write($"[DiscordRPC] Bridged Discord IPC socket: {link} -> {sandboxSocket}");
+                }
+                catch (Exception e)
+                {
+                    log.Warn($"[DiscordRPC] Couldn't bridge Discord IPC socket: {e.Message}");
+                }
+                return;
+            }
         }
     }
 }
