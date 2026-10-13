@@ -162,6 +162,15 @@ class Program
         ListeningData.Heartbeat(listeningDataCancellationToken, ShutdownRequested);
     }
 
+    // Console.Clear() throws when the output isn't a console (a redirected or hidden launch), which
+    // is not a reason to fail the installer or the uninstaller.
+    static void ClearConsole()
+    {
+        try { Console.Clear(); }
+        catch (IOException) { }
+        catch (PlatformNotSupportedException) { }
+    }
+
     // Show install/uninstall prompt if the user starts the program as standalone
     static void UseGUI(string[] args)
     {
@@ -256,7 +265,7 @@ class Program
 
         if (!runningOnBrowser)
         {
-            Console.Clear();
+            ClearConsole();
             Console.WriteLine($"Running {VRPCGlobalData.appName} version {VRPCGlobalData.appVersion}");
             Console.WriteLine($"Please don't close the console (this black box) while the UI is present or while the application is installing/uninstalling.\n");
             UseGUI(args);
