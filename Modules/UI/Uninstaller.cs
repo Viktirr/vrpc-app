@@ -1,4 +1,3 @@
-using DiscordRPC.Helper;
 using Microsoft.Win32;
 
 namespace VRPC.Packaging
@@ -8,8 +7,10 @@ namespace VRPC.Packaging
 
         public void Uninstall()
         {
+            // Keeping the user's data is deliberate: Data/ holds the settings and the listening
+            // history, and the uninstaller tells the user where it stays.
             bool removeData = false;
-            Console.WriteLine($"You may uninstall the VRPC application by selecting Uninstall. Your app activity (Listening Data) and preferences will be deleted. \n\nYou ran the uninstaller, meaning by typing Y below the application will uninstall. {PackagingGlobals.uninstallString}");
+            Console.WriteLine($"You may uninstall the VRPC application by selecting Uninstall. Your settings and listening data will be kept. \n\nYou ran the uninstaller, meaning by typing Y below the application will uninstall. {PackagingGlobals.uninstallString}");
 
             Console.Write("Proceed with uninstallation? [N/y]: ");
             string? userInput = Console.ReadLine();
@@ -71,7 +72,7 @@ namespace VRPC.Packaging
                 string[] registryKeys = new string[]
                 {
                     @"Software\Mozilla\NativeMessagingHosts\vrpc",
-                    @"Software\Chrome\NativeMessagingHosts\vrpc",
+                    @"Software\Google\Chrome\NativeMessagingHosts\vrpc",
                     @"Software\Microsoft\Edge\NativeMessagingHosts\vrpc",
                     @"Software\Viktir\vrpc",
                     @"Software\Microsoft\Windows\CurrentVersion\Uninstall\VRPCApp"
@@ -102,8 +103,10 @@ namespace VRPC.Packaging
                 }
             }
 
-            // Delete contents of installation folder
+            // Delete contents of installation folder. Only the application files are removed, the
+            // user's data stays where it is.
             string binPath = Path.Combine(installPath, "bin");
+            string dataPath = Path.Combine(installPath, "Data");
             Console.WriteLine($"Deleting contents at {installPath}");
             if (Directory.Exists(installPath))
             {
@@ -118,7 +121,7 @@ namespace VRPC.Packaging
                     {
                         files = Directory.GetFiles(binPath);
                     }
-                    Console.WriteLine($"There are {files.Length} files in {binPath}");
+                    Console.WriteLine($"There are {files.Length} files in {(removeData ? installPath : binPath)}");
 
                     int filesUpperThreshold = 400;
                     if (files.Length > filesUpperThreshold)
@@ -128,31 +131,17 @@ namespace VRPC.Packaging
                         Environment.Exit(1);
                         return;
                     }
-                    else
+                    else if (removeData)
                     {
                         Console.WriteLine($"Deleting {installPath}");
-
-                        foreach (string file in files)
-                        {
-                            try
-                            {
-                                File.Delete(file);
-                            }
-                            catch (Exception e)
-                            {
-                                Console.WriteLine($"Error deleting file {file}. {e.Data}");
-                            }
-                            Console.WriteLine($"File {file} deleted.");
-                        }
-                        if (removeData)
-                        {
-                            Directory.Delete(installPath, true);
-                        }
-                        else
-                        {
-                            Directory.Delete(installPath);
-                        }
+                        Directory.Delete(installPath, true);
                         Console.WriteLine("All files and directories have been deleted.");
+                    }
+                    else
+                    {
+                        Console.WriteLine($"Deleting {binPath}");
+                        Directory.Delete(binPath, true);
+                        Console.WriteLine($"Application files deleted. Your settings and listening data were kept in {dataPath}.");
                     }
                 }
                 catch (Exception ex)
