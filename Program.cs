@@ -68,7 +68,7 @@ class Program
         if (messageDictionary[1].Contains("Closed"))
         {
             if (currentService != DiscordRPCData.currentService) { return; }
-            try { discordCancellationTokenSource.Cancel(); } catch (Exception e) { log.Warn($"[Main] Couldn't cancel Cancellation Token for Discord RPC, probably already cancelled? Exception {e.Data}"); return; }
+            try { discordCancellationTokenSource.Cancel(); } catch (Exception e) { log.Warn($"[Main] Couldn't cancel Cancellation Token for Discord RPC, probably already cancelled? Exception {e.Message}"); return; }
 
             if (VRPCGlobalData.MiscellaneousSongData.Count != 0) { VRPCGlobalData.MiscellaneousSongData.Clear(); }
         }

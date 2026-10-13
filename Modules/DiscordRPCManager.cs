@@ -38,7 +38,7 @@ namespace VRPC.DiscordRPCManager
             EnsureDiscordSocketLinux();
 
             string currentServiceDiscordId;
-            try { currentServiceDiscordId = serviceList[service]; DiscordRPCData.currentService = service; } catch (Exception e) { log.Warn($"[DiscordRPC] Couldn't get current service, using vrpc. Exception: {e.Data}. Service which was not found: {service}"); currentServiceDiscordId = serviceList["Default"]; }
+            try { currentServiceDiscordId = serviceList[service]; DiscordRPCData.currentService = service; } catch (Exception e) { log.Warn($"[DiscordRPC] Couldn't get current service, using vrpc. Exception: {e.Message}. Service which was not found: {service}"); currentServiceDiscordId = serviceList["Default"]; }
 
             try
             {

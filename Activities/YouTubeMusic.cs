@@ -65,7 +65,7 @@ namespace VRPC.DiscordRPCManager.Activities
             }
             catch (Exception e)
             {
-                log.Warn($"[YouTube Music] Couldn't get songId and set LargeImage appropriately. Exception {e.Data}");
+                log.Warn($"[YouTube Music] Couldn't get songId and set LargeImage appropriately. Exception {e.Message}");
                 richPresence.Assets.LargeImageKey = "ytmusic-rpc";
             }
         }

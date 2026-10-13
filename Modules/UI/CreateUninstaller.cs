@@ -47,7 +47,7 @@ namespace VRPC.Packaging
             }
             catch (Exception e)
             {
-                Console.WriteLine($"Error creating uninstaller in temp: {e.Data}. Check your disk space.");
+                Console.WriteLine($"Error creating uninstaller in temp: {e.Message}. Check your disk space.");
                 Environment.Exit(1);
             }
         }

@@ -39,7 +39,7 @@ namespace VRPC.NativeMessasing
 
                 NativeMessaging.SendMessage(NativeMessaging.EncodeMessage(RPCString));
             }
-            catch (Exception e) { log.Write($"[NativeMessagingCommands] Couldn't send RPC data to extension. Exception: {e.Data}. RPCString: {RPCString}"); }
+            catch (Exception e) { log.Write($"[NativeMessagingCommands] Couldn't send RPC data to extension. Exception: {e.Message}. RPCString: {RPCString}"); }
         }
 
         public static void SendConfigFull()
@@ -112,7 +112,7 @@ namespace VRPC.NativeMessasing
             }
             catch (Exception e)
             {
-                log.Write($"[NativeMessagingCommands] Failed to send version from application to extension. Exception: {e.Data}");
+                log.Write($"[NativeMessagingCommands] Failed to send version from application to extension. Exception: {e.Message}");
             }
         }
 
@@ -135,7 +135,7 @@ namespace VRPC.NativeMessasing
             }
             catch (Exception e)
             {
-                log.Write($"[NativeMessagingCommands] Failed to send listening data statistics from application to extension. Exception {e.Data}");
+                log.Write($"[NativeMessagingCommands] Failed to send listening data statistics from application to extension. Exception {e.Message}");
             }
             return;
         }
@@ -151,7 +151,7 @@ namespace VRPC.NativeMessasing
             }
             catch (Exception e)
             {
-                log.Write($"[NativeMessagingCommands] Failed to send file reason of application exit. Exception: {e.Data}");
+                log.Write($"[NativeMessagingCommands] Failed to send file reason of application exit. Exception: {e.Message}");
             }
         }
     }

@@ -26,8 +26,8 @@ namespace VRPC.Configuration
             }
             catch (Exception e)
             {
-                log.Write($"[VRPCSettings] FATAL: Application data directory was not able to be created. Quitting! Exception {e.Data}");
-                throw new Exception($"[VRPCSettings] FATAL: Application data directory was not able to be created. Quitting! Exception {e.Data}");
+                log.Write($"[VRPCSettings] FATAL: Application data directory was not able to be created. Quitting! Exception {e.Message}");
+                throw new Exception($"[VRPCSettings] FATAL: Application data directory was not able to be created. Quitting! Exception {e.Message}");
             }
         }
         public static class SettingsInfo
