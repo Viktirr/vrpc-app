@@ -1,4 +1,5 @@
-﻿using VRPC.DiscordRPCManager;
+using System.Text.Json;
+using VRPC.DiscordRPCManager;
 using VRPC.Logging;
 using VRPC.NativeMessasing;
 using VRPC.Configuration;
@@ -122,7 +123,11 @@ class Program
     {
         while (true)
         {
-            string receivedMessage = NativeMessaging.GetMessage();
+            NativeMessaging.ReadResult result = NativeMessaging.ReadMessage(out string receivedMessage);
+
+            if (result == NativeMessaging.ReadResult.Closed) { Shutdown(exit: true); return; }
+            if (result == NativeMessaging.ReadResult.Skipped) { continue; }
+
             string messageType;
             string messageContent;
             if (receivedMessage.IndexOf("\n") == -1)
@@ -200,6 +205,30 @@ class Program
     public static void RemoveLock()
     {
         _lock.RemoveLock();
+    }
+
+    // Shared shutdown path: release the lock, flush the current song into the listening data file
+    // and refresh the backup. Used when the browser closes the connection and when the extension
+    // asks the app to shut down.
+    public static void Shutdown(bool exit)
+    {
+        log.Write("[Main] Shutting down.");
+        RemoveLock();
+
+        ListeningData.UpdateListeningDataFile();
+
+        try
+        {
+            string data = File.ReadAllText(VRPCSettings.ListeningDataPath);
+            JsonSerializer.Deserialize<ListeningData.SongData>(data);
+            ListeningDataBackup.CreateBackup();
+        }
+        catch
+        {
+            log.Write("[Main] Skipping backup due to corrupted file.");
+        }
+
+        if (exit) { Environment.Exit(0); }
     }
 
     static void Main(string[] args)
