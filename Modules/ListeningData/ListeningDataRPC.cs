@@ -1,3 +1,4 @@
+using System.Globalization;
 using System.Text.RegularExpressions;
 using VRPC.DiscordRPCManager;
 using VRPC.Logging;
@@ -30,7 +31,10 @@ namespace VRPC.ListeningDataManager
 
             if (songData.SongsData.ContainsKey(key))
             {
-                DiscordRPCData.richPresenceData.Assets.LargeImageText = $"Listened for {float.Parse(songData.SongsData[key]["timelistened"]) / 3600:F1} hours total.";
+                if (float.TryParse(songData.SongsData[key]["timelistened"], NumberStyles.Float, CultureInfo.InvariantCulture, out float secondsListened))
+                {
+                    DiscordRPCData.richPresenceData.Assets.LargeImageText = $"Listened for {secondsListened / 3600:F1} hours total.";
+                }
             }
         }
     }

@@ -143,8 +143,17 @@ class Program
 
             // log.Write($"[Main] Received {receivedMessage}");
 
-            if (messageType == "RPC:") { NativeMessaging.UpdateRPCDataLegacy(messageContent); }
-            if (messageType == "STATUS:") { StatusUpdate(messageContent); }
+            // A single bad frame must never take the app down: page controlled data (song names,
+            // durations, ...) ends up in here, so log it and keep serving the connection.
+            try
+            {
+                if (messageType == "RPC:") { NativeMessaging.UpdateRPCDataLegacy(messageContent); }
+                if (messageType == "STATUS:") { StatusUpdate(messageContent); }
+            }
+            catch (Exception e)
+            {
+                log.Error($"[Main] Couldn't handle a {messageType} message, ignoring it. Exception: {e}");
+            }
         }
     }
 

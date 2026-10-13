@@ -1,5 +1,6 @@
 using System.Text.RegularExpressions;
 using System.Text;
+using System.Globalization;
 
 namespace VRPC.Globals
 {
@@ -36,6 +37,20 @@ namespace VRPC.Globals
         {
             if (value == null || value == "" || value == "null") { return true; }
             else { return false; }
+        }
+
+        // Longest value we accept for a scraped time or duration (7 days). Anything above that is a
+        // broken page value rather than a song, and clamping keeps the timestamp math in range.
+        private const int MaxSeconds = 7 * 24 * 60 * 60;
+
+        // Parses a time or duration that came from a web page. Those can be missing, empty, "null",
+        // "NaN" or plain nonsense, so anything unparsable becomes 0 instead of throwing.
+        public static int ParseSeconds(string? value)
+        {
+            if (!int.TryParse(value, NumberStyles.Integer, CultureInfo.InvariantCulture, out int seconds)) { return 0; }
+            if (seconds < 0) { return 0; }
+            if (seconds > MaxSeconds) { return MaxSeconds; }
+            return seconds;
         }
 
         public static string RemoveArtistFromTitle(string songName, string artistName)

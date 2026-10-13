@@ -118,8 +118,8 @@ namespace VRPC.DiscordRPCManager.Activities
 
             string songName = VRPCGlobalData.RPCDataLegacyDictionary.GetValueOrDefault(1, "");
             string artistName = VRPCGlobalData.RPCDataLegacyDictionary.GetValueOrDefault(2, "");
-            int currentTime = int.Parse(VRPCGlobalData.RPCDataLegacyDictionary.GetValueOrDefault(3, "0"));
-            int totalTime = int.Parse(VRPCGlobalData.RPCDataLegacyDictionary.GetValueOrDefault(4, "0"));
+            int currentTime = VRPCGlobalFunctions.ParseSeconds(VRPCGlobalData.RPCDataLegacyDictionary.GetValueOrDefault(3, "0"));
+            int totalTime = VRPCGlobalFunctions.ParseSeconds(VRPCGlobalData.RPCDataLegacyDictionary.GetValueOrDefault(4, "0"));
             string? songStatus = VRPCGlobalData.RPCDataLegacyDictionary.GetValueOrDefault(5);
             string? smallSongBanner = VRPCGlobalData.RPCDataLegacyDictionary.GetValueOrDefault(6);
             string? songUrl = VRPCGlobalData.RPCDataLegacyDictionary.GetValueOrDefault(7);
