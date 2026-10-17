@@ -108,7 +108,7 @@ namespace VRPC.NativeMessasing
             try
             {
                 log.Write($"[NativeMessagingCommands] Sending version from application to extension.");
-                NativeMessaging.SendMessage(NativeMessaging.EncodeMessage($"APPVERSION: {VRPCGlobalData.appVersion}"));
+                NativeMessaging.SendMessage(NativeMessaging.EncodeMessage($"APPVERSION: {ProtocolState.AppVersionPayload()}"));
             }
             catch (Exception e)
             {

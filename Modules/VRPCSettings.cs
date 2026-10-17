@@ -1,20 +1,21 @@
 using System.Text;
 using System.Text.Json;
+using VRPC.Application;
 using VRPC.Logging;
 
 namespace VRPC.Configuration
 {
     class VRPCSettings
     {
-        private static string pathAppData = Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData);
-        public static string UserAppDataPath = Path.Combine(pathAppData, "VRPCApp");
-        public static string UserDataPath = Path.Combine(UserAppDataPath, "Data");
-        public static string ListeningDataPath = Path.Combine(UserDataPath, "ListeningData.json");
-        public static string ListeningDataBackupPath = Path.Combine(UserDataPath, "ListeningData_backup.json");
-        public static string ConfigPath = Path.Combine(UserDataPath, "Config.json");
+        // Host paths: durable data under the installer-managed root.
+        public static string UserAppDataPath => AppPaths.Root;
+        public static string UserDataPath => AppPaths.Data;
+        public static string ListeningDataPath => Path.Combine(UserDataPath, "ListeningData.json");
+        public static string ListeningDataBackupPath => Path.Combine(UserDataPath, "ListeningData_backup.json");
+        public static string ConfigPath => Path.Combine(UserDataPath, "Config.json");
         public static SettingsData settingsData = new SettingsData();
 
-        public static string LogPath = Path.Combine(UserDataPath, "Log.txt");
+        public static string LogPath => Path.Combine(AppPaths.Logs, "app.log");
         public static Log log = new Log();
 
         public static void CheckIfApplicationDataFolderExists()
@@ -22,6 +23,8 @@ namespace VRPC.Configuration
             try
             {
                 Directory.CreateDirectory(UserDataPath);
+                Directory.CreateDirectory(AppPaths.State);
+                Directory.CreateDirectory(AppPaths.Logs);
                 log.Write("[VRPCSettings] Application data directory created.");
             }
             catch (Exception e)

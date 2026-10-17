@@ -2,7 +2,11 @@
 /bin/
 /obj/
 /dist/
+/artifacts/
 
 # VS Code
 *.code-workspace
 *editorconfig
+
+# Python
+__pycache__/

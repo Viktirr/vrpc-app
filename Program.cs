@@ -1,16 +1,22 @@
 using System.Text.Json;
+using VRPC;
+using VRPC.Application;
 using VRPC.DiscordRPCManager;
+using VRPC.Host;
 using VRPC.Logging;
 using VRPC.NativeMessasing;
 using VRPC.Configuration;
 using VRPC.ListeningDataManager;
 using VRPC.Globals;
-using VRPC.Packaging;
+using VRPC.Setup;
 
 class Program
 {
     private static Log log = new Log();
-    private static VRPC.Lock.Lock _lock = new VRPC.Lock.Lock();
+    private static int _shutdownStarted;
+
+    public static SingleInstance? Instance { get; set; }
+    public static ControlServer? ControlServer { get; set; }
 
     public static bool runningOnBrowser = false;
     public static bool isDiscordRPCRunning = false;
@@ -50,7 +56,14 @@ class Program
 
         if (messageDictionary[0].Contains("Program")) { NativeMessaging.ConnectivityStatus(messageDictionary); return; }
 
-        currentService = messageDictionary[0];
+        string service = messageDictionary[0];
+        if (service is not ("YouTube Music" or "Soundcloud"))
+        {
+            log.Warn($"[Main] Ignoring an unknown status command: {service}");
+            return;
+        }
+
+        currentService = service;
         log.Write("[Main] Service selected: " + currentService);
 
         // Fix The given key '1' was not present in the dictionary.
@@ -119,7 +132,7 @@ class Program
         discordRPCThread.Start();
     }
 
-    static void UseNativeMessaging()
+    public static void UseNativeMessaging()
     {
         while (true)
         {
@@ -147,6 +160,7 @@ class Program
             // durations, ...) ends up in here, so log it and keep serving the connection.
             try
             {
+                if (messageType == "PROTO:") { ProtocolState.SetClientProtocol(messageContent); }
                 if (messageType == "RPC:") { NativeMessaging.UpdateRPCDataLegacy(messageContent); }
                 if (messageType == "STATUS:") { StatusUpdate(messageContent); }
             }
@@ -157,72 +171,15 @@ class Program
         }
     }
 
-    static void UseListeningData(bool ShutdownRequested = false)
+    public static void UseListeningData(bool ShutdownRequested = false)
     {
         ListeningData.Heartbeat(listeningDataCancellationToken, ShutdownRequested);
     }
 
-    // Console.Clear() throws when the output isn't a console (a redirected or hidden launch), which
-    // is not a reason to fail the installer or the uninstaller.
-    static void ClearConsole()
-    {
-        try { Console.Clear(); }
-        catch (IOException) { }
-        catch (PlatformNotSupportedException) { }
-    }
-
-    // Show install/uninstall prompt if the user starts the program as standalone
-    static void UseGUI(string[] args)
-    {
-        bool isUninstall = false;
-        bool isUninstallTemp = false;
-
-        string roamingAppDataPath = Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData);
-        string appNamePath = Path.Combine(roamingAppDataPath, VRPCGlobalData.appName);
-        string binPath = Path.Combine(appNamePath, "bin");
-
-        string sourceFilePath = AppContext.BaseDirectory;
-
-        if (Directory.Exists(appNamePath) && !appNamePath.Contains(sourceFilePath))
-        {
-            if (File.Exists(Path.Combine(binPath, "VRPC.exe")))
-            {
-                isUninstallTemp = true;
-                PackagingGlobals.uninstallString = $"\n\nPLEASE READ\nYou were launched to the uninstaller because the application is already installed. If this is a mistake, delete the folder {appNamePath} and relaunch the installer.\n\nUPDATES:\nIf you're updating to a new version, first select Uninstall below then relaunch the installer.";
-            }
-        }
-
-        foreach (string arg in args)
-        {
-            if (arg == "--uninstall")
-            {
-                isUninstall = true;
-            }
-            if (arg == "--uninstall-temp")
-            {
-                isUninstallTemp = true;
-            }
-        }
-
-        if (isUninstall)
-        {
-            CreateUninstaller.CreateUninstall();
-        }
-        else if (isUninstallTemp)
-        {
-            UninstallWindow uw = new UninstallWindow();
-            uw.Uninstall();
-        }
-        else
-        {
-            InstallWindow iw = new InstallWindow();
-            iw.Install();
-        }
-    }
-
     public static void RemoveLock()
     {
-        _lock.RemoveLock();
+        Instance?.Dispose();
+        Instance = null;
     }
 
     // Shared shutdown path: release the lock, flush the current song into the listening data file
@@ -230,7 +187,11 @@ class Program
     // asks the app to shut down.
     public static void Shutdown(bool exit)
     {
+        if (Interlocked.Exchange(ref _shutdownStarted, 1) != 0) { return; }
+
         log.Write("[Main] Shutting down.");
+        ControlServer?.Dispose();
+        ControlServer = null;
         RemoveLock();
 
         ListeningData.UpdateListeningDataFile();
@@ -249,43 +210,10 @@ class Program
         if (exit) { Environment.Exit(0); }
     }
 
-    static void Main(string[] args)
+    // Browser launches go to the host; everything else goes to setup.
+    static int Main(string[] args)
     {
-        foreach (string arg in args)
-        {
-            log.Info(arg);
-        }
-        if (args.Count() == 0) { log.Info("Assuming running natively."); }
-        else
-        {
-            if (args[0].Contains("chrome-extension")) { log.Info("Assuming running from browser."); runningOnBrowser = true; }
-            else if (args[0].Contains(".json")) { log.Info("Assuming running from browser."); runningOnBrowser = true; }
-            else { log.Info("Assuming running natively."); }
-        }
-
-        if (!runningOnBrowser)
-        {
-            ClearConsole();
-            Console.WriteLine($"Running {VRPCGlobalData.appName} version {VRPCGlobalData.appVersion}");
-            Console.WriteLine($"Please don't close the console (this black box) while the UI is present or while the application is installing/uninstalling.\n");
-            UseGUI(args);
-            return;
-        }
-
-        VRPCSettings.CheckIfApplicationDataFolderExists();
-        VRPCSettings.CheckSettings();
-        log.Write("[Main] Reading Settings from file.");
-
-        if (VRPCSettings.settingsData.DisableClearingLogs == false) { log.Clear(); }
-
-        _lock.Create();
-
-        Thread nativeMessagingThread = new Thread(UseNativeMessaging);
-        nativeMessagingThread.Start();
-        log.Write("[Main] Starting Native Messaging.");
-
-        Thread listeningDataThread = new Thread(new ParameterizedThreadStart((obj) => UseListeningData((bool)(obj ?? false))));
-        listeningDataThread.Start();
-        log.Write("[Main] Starting Listening Data.");
+        if (BrowserInvocation.IsHost(args)) { return HostEntry.Run(args); }
+        return SetupEntry.Run(args);
     }
 }

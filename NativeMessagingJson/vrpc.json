@@ -1,7 +1,7 @@
 {
   "name": "vrpc",
   "description": "Transfers Rich Presence data to Discord",
-  "path": "C:\\Users\\User\\Desktop\\vrpc-app\\bin\\Debug\\net6.0\\VRPC.exe",
+  "path": "C:\\Users\\User\\AppData\\Local\\Viktir\\VRPCApp\\app\\VRPC.exe",
   "type": "stdio",
   "allowed_extensions": [ "vrpc@viktir.com" ]
 }

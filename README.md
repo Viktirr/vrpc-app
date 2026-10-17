@@ -6,78 +6,81 @@ Understanding the nature of security, I allow viewing the source code.
 Please note that this project is NOT open source, I allow viewing the code, however you're not able to modify it.
 
 ## Installation
-Installation is now one-click! Just run the application and click install. No administration privileges are required.  
-Otherwise, if you feel to manually install the application, feel free to follow the following steps.
+### Windows
+- [Download](https://github.com/Viktirr/vrpc-app/releases) the Windows package from the releases tab or build it yourself.
+- Unzip it.
+- Run `VRPC.exe` and follow the console prompts. No administration privileges are required.
 
-### Application
-#### Windows
-- [Download](https://github.com/Viktirr/vrpc-app/releases) the (full-zipped version) application from the releases tab or build it yourself.
-- Unzip it
-- Run it (`VRPC.exe`)
+The installer puts the application in `%LOCALAPPDATA%\Viktir\VRPCApp`.
 
-#### Linux
+### Updating
+Download the new package, extract it, and run `VRPC.exe` again. The installer detects the existing version and updates in place. Future versions will have automatic unattended updates.
+
+### Uninstalling
+Settings > Apps > Installed apps > VRPC > Uninstall. By default it keeps your settings and listening history intact.
+
+If you want to remove your data too, delete `%LOCALAPPDATA%\Viktir\VRPCApp\data` manually. (soon you'll be able to choose)
+
+### Linux
 - [Download](https://github.com/Viktirr/vrpc-app/releases) the Linux package from the releases tab or build it yourself.
-- Unzip it
+- Unzip it.
 - Run `./install-linux.sh`
 
-After installation it's safe to delete the unzipped files from your Downloads folder. Keep `install-linux.sh` (or re-download it) if you later want to uninstall (`./install-linux.sh uninstall`).  
-To update simply launch `install-linux.sh` on the new version.
+The Linux script installs to `~/.local/share/Viktir/VRPCApp`, detects native and Flatpak browsers, and writes one manifest per browser. To update, run `install-linux.sh` again. To uninstall, run `./install-linux.sh uninstall`.
 
-### Native Messaging Support Installation (Windows)
-The steps below are Windows-only if automatic installation fails.
-- Open regedit and head over to one of the following locations depending on the browser you use,
-for Firefox, the registry key is:
-`HKEY_LOCAL_MACHINE\SOFTWARE\Mozilla\NativeMessagingHosts`
-- Create a new key (folder) inside NativeMessagingHosts named vrpc
-- Under (Default) paste the path of [vrpc.json](https://github.com/Viktirr/vrpc-app/blob/main/NativeMessagingJson/vrpc.json) (Download this file locally, you'll need to modify it)
-- Inside of vrpc.json, paste the path of VRPC.exe, make sure there are double backslashes.
+## Native Messaging Support (Windows)
+The installer writes the native-messaging registration under `HKEY_CURRENT_USER`.
+
+If you installed manually or need to troubleshoot, check these per-user keys:
+
+- Firefox: `HKEY_CURRENT_USER\SOFTWARE\Mozilla\NativeMessagingHosts\vrpc`
+- Chrome: `HKEY_CURRENT_USER\SOFTWARE\Google\Chrome\NativeMessagingHosts\vrpc`
+- Edge: `HKEY_CURRENT_USER\SOFTWARE\Microsoft\Edge\NativeMessagingHosts\vrpc`
+
+The value should point at a manifest in `%LOCALAPPDATA%\Viktir\VRPCApp\manifests`, and that manifest's `path` value should point at `%LOCALAPPDATA%\Viktir\VRPCApp\app\VRPC.exe`.
 
 ## Building
 Prerequisites:
-- C# .NET 9 (or higher)  
-You may build the application by using one of the following:  
-`dotnet build`  
-This builds the debug version of the application.
-  
-`dotnet publish -c Release -r win-x64 --self-contained true /p:PublishSingleFile=false`  
-This builds the release (full-zipped) version of the application. Zipping is done manually.  
-  
-`dotnet publish -c Release -r win-x64 --self-contained true /p:PublishSingleFile=true`  
-This builds the release (single-file application - VRPC.exe) version of the application.  
-  
-`dotnet publish -c Release -r win-x64 --self-contained false /p:PublishSingleFile=false`  
-This builds the release (minimal) version of the application. Zipping is done manually.  
-  
-`dotnet publish -c Release -r linux-x64 --self-contained true /p:PublishSingleFile=false`  
-This builds the release version for Linux.
+- C# .NET 9 (or higher)
+
+Build the development version:
+
+```
+dotnet build
+```
+
+Build a release package with the payload manifest and zip:
+
+```
+.\packaging\build-release.ps1 -Version 1.10.0
+```
+
+The package is written to `artifacts\VRPC-1.10.0-win-x64.zip`. The version comes from `Directory.Build.props` unless `-Version` is supplied like in the example.
 
 ## Troubleshooting / IT DOESN'T WORK!!
 ### Native Messaging Permissions
-Please make sure the script is allowed native messaging permissions from the browser. Check the following registry keys:  
-Firefox: `HKEY_CURRENT_USER\SOFTWARE\Mozilla\NativeMessagingHosts`  
-Chrome: `HKEY_CURRENT_USER\SOFTWARE\Google\Chrome\NativeMessagingHosts`  
-Edge: `HKEY_CURRENT_USER\SOFTWARE\Microsoft\Edge\NativeMessagingHosts`  
-If your browser is not listed here, please look online for "NativeMessaging (your browser name here)"  
-You should create a key with the name of the extension and on the (Default) value, select the path to the manifest file available [here](https://github.com/Viktirr/vrpc-app/blob/main/NativeMessagingJson/vrpc.json).  
+Please make sure the extension is allowed native-messaging permissions from the browser. Check the registry keys listed above ([Native Messaging Support (Windows)](#native-messaging-support-windows)). If your browser is not listed, look up its native-messaging registry path online and create a `vrpc` key pointing at the manifest (`%LOCALAPPDATA%\Viktir\VRPCApp\manifests`).
+
+### Logs
+- Application/runtime logs: `%LOCALAPPDATA%\Viktir\VRPCApp\state\logs`
+- Setup/update logs: the same folder, named `setup-*.log`
 
 ### Missing dependencies
-I'm not sure if this is required, however if needed, you may install the  
-[.NET Desktop Runtime/.NET SDK](https://dotnet.microsoft.com/en-us/download)
+The release build is self-contained. A development build requires the .NET 9 runtime.  
+
+If you are using an older `minimal` build, please switch to a `full` build, relaunching the installer works fine.
 
 ### Double-check Paths/Directories
-Make sure every directory is rightly listed. If you need to change the directory of the app, I recommend reinstalling it.  
-
-If you installed the application manually, please double check the vrpc.json file that's connected to the NativeMessagingHosts registry key. If it exists, check if the path to the application exists, make sure there are double slashes in vrpc.json.
+Make sure the manifest path exists and that `VRPC.exe` is in the `app` folder. If you moved the installation manually, reinstall it rather than editing the registry.
 
 ### Reinstalling
-Uninstalling and installing the software again may help.
+Run the latest package again and choose repair/reinstall, or uninstall and reinstall if the installation is damaged.
 
 ### Crashes
-It can also be that this is not a problem of user error, so there might be possible crashes from the application. If you encounter such, feel free to create an Issue (I'm not sure if that works, if it doesn't, feel free to contact me via email at viktir@uninbox.me instead).
+If you encounter a crash, create an Issue or contact viktir@uninbox.me with the setup/runtime log.
 
 ## Software used
 This project wouldn't have been possible without the following projects/software:  
 - C# .NET
 - [Discord RPC C#](https://github.com/Lachee/discord-rpc-csharp)
 - Newtonsoft.json
-- GTK#

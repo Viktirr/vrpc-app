@@ -1,6 +1,7 @@
 using System.Text.RegularExpressions;
 using System.Text;
 using System.Globalization;
+using VRPC.Application;
 
 namespace VRPC.Globals
 {
@@ -10,7 +11,7 @@ namespace VRPC.Globals
         public static Dictionary<int, string> RPCDataLegacyDictionary = new Dictionary<int, string>();
         public static string? RPCDataLegacyString;
 
-        public static string appVersion = "1.10dev";
+        public static string appVersion => ProductInfo.Version;
         public static string appName = "VRPCApp";
         public static string exeName = "VRPC.exe";
 

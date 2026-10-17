@@ -6,9 +6,13 @@
 set -euo pipefail
 
 APP_NAME="VRPCApp"
-APP_DIR="${XDG_CONFIG_HOME:-$HOME/.config}/$APP_NAME"
-BIN_DIR="$APP_DIR/bin"
-EXE="$BIN_DIR/VRPC"
+APP_DIR="${XDG_DATA_HOME:-$HOME/.local/share}/Viktir/$APP_NAME"
+APP_BIN="$APP_DIR/app"
+DATA_DIR="$APP_DIR/data"
+STATE_DIR="$APP_DIR/state"
+MANIFEST_DIR="$APP_DIR/manifests"
+EXE="$APP_BIN/VRPC"
+OLD_APP_DIR="${XDG_CONFIG_HOME:-$HOME/.config}/VRPCApp"
 
 HOST_NAME="vrpc"
 FIREFOX_EXT_ID="vrpc@viktir.com"
@@ -19,7 +23,17 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
 log() { printf '%s\n' "$*"; }
 
-# Installs the prebuilt VRPC payload into $BIN_DIR (~/.config/VRPCApp/bin).
+migrate_old_layout() {
+    if [ -d "$OLD_APP_DIR/Data" ]; then
+        mkdir -p "$DATA_DIR"
+        if [ -z "$(find "$DATA_DIR" -mindepth 1 -maxdepth 1 -print -quit 2>/dev/null)" ]; then
+            cp -a "$OLD_APP_DIR/Data"/. "$DATA_DIR"/
+            log "Migrated old data from $OLD_APP_DIR/Data -> $DATA_DIR"
+        fi
+    fi
+}
+
+# Installs the prebuilt VRPC payload into $APP_BIN (~/.local/share/Viktir/VRPCApp/app).
 # Searches in order: $VRPC_PAYLOAD, ./dist, then local publish output (each copied
 # whole, so multi-file builds work), and finally a single ./VRPC next to this script.
 install_app() {
@@ -42,13 +56,16 @@ install_app() {
         exit 1
     fi
 
-    # Wipe bin/ first so an update can't leave stale runtime files behind. Data/ is a
-    # sibling of bin/ and is left untouched, so settings + listening history survive.
-    rm -rf "$BIN_DIR"
-    mkdir -p "$BIN_DIR"
+    migrate_old_layout
+    mkdir -p "$APP_BIN" "$DATA_DIR" "$STATE_DIR" "$STATE_DIR/logs" "$MANIFEST_DIR"
+
+    # Wipe app/ first so an update can't leave stale runtime files behind. data/ is
+    # a sibling of app/ and is left untouched, so settings + listening history survive.
+    rm -rf "$APP_BIN"
+    mkdir -p "$APP_BIN"
     if [ -n "$payload_dir" ]; then
-        cp -rf "$payload_dir"/. "$BIN_DIR"/
-        log "Installed app -> $BIN_DIR  (from $payload_dir)"
+        cp -rf "$payload_dir"/. "$APP_BIN"/
+        log "Installed app -> $APP_BIN  (from $payload_dir)"
     else
         cp -f "$single" "$EXE"
         log "Installed app -> $EXE  (from $single)"
@@ -139,6 +156,21 @@ register_browsers() {
         install_host "$HOME/.config/google-chrome/NativeMessagingHosts" chromium native
         found=1
     fi
+    if command -v microsoft-edge >/dev/null 2>&1 || [ -d "$HOME/.config/microsoft-edge" ]; then
+        log "Edge (native) detected"
+        install_host "$HOME/.config/microsoft-edge/NativeMessagingHosts" chromium native
+        found=1
+    fi
+    if command -v vivaldi >/dev/null 2>&1 || [ -d "$HOME/.config/vivaldi" ]; then
+        log "Vivaldi (native) detected"
+        install_host "$HOME/.config/vivaldi/NativeMessagingHosts" chromium native
+        found=1
+    fi
+    if command -v opera >/dev/null 2>&1 || [ -d "$HOME/.config/opera" ]; then
+        log "Opera (native) detected"
+        install_host "$HOME/.config/opera/NativeMessagingHosts" chromium native
+        found=1
+    fi
 
     if [ "$found" = 0 ]; then
         log "No supported browser found. Install Brave/Firefox/Chromium/Chrome and re-run."
@@ -155,15 +187,19 @@ uninstall() {
         "$HOME/.var/app/org.mozilla.firefox/.mozilla/native-messaging-hosts" \
         "$HOME/.mozilla/native-messaging-hosts" \
         "$HOME/.config/chromium/NativeMessagingHosts" \
-        "$HOME/.config/google-chrome/NativeMessagingHosts"; do
+        "$HOME/.config/google-chrome/NativeMessagingHosts" \
+        "$HOME/.config/microsoft-edge/NativeMessagingHosts" \
+        "$HOME/.config/vivaldi/NativeMessagingHosts" \
+        "$HOME/.config/opera/NativeMessagingHosts"; do
         rm -f "$d/$HOST_NAME.json" "$d/vrpc-host.sh"
     done
     local id
     for id in com.brave.Browser org.mozilla.firefox; do
         flatpak_has "$id" && flatpak override --user --no-talk-name=org.freedesktop.Flatpak "$id" 2>/dev/null || true
     done
-    rm -rf "$BIN_DIR"
-    log "Done. App data in $APP_DIR was left intact (delete it manually to wipe settings/history)."
+    rm -rf "$APP_BIN" "$MANIFEST_DIR" "$STATE_DIR"
+    rm -rf "$OLD_APP_DIR/bin"
+    log "Done. App data in $DATA_DIR was left intact (delete it manually to wipe settings/history)."
 }
 
 case "${1:-install}" in
