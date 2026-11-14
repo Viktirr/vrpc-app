@@ -52,7 +52,7 @@ namespace VRPC.Setup
             bool insideApp = AppPaths.IsUnderApp(AppContext.BaseDirectory);
             if (options.Uninstall && !options.UninstallTemp && insideApp)
             {
-                return UninstallLauncher.Launch(options.Quiet, options.PurgeData, options.Force);
+                return UninstallLauncher.Launch(options);
             }
 
             if (args.Length == 0)

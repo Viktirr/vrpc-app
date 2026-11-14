@@ -6,8 +6,11 @@ namespace VRPC.Setup
     // Copies the app to %TEMP% so the original app/ can be deleted.
     public static class UninstallLauncher
     {
-        // Passes the original root to the temp uninstaller.
-        public static int Launch(bool quiet, bool purge, bool force)
+        // Passes the original root and the caller's choices to the temp
+        // uninstaller. Every flag has to be forwarded: the relaunched process is
+        // a fresh one, and --yes in particular was being dropped, so an
+        // unattended uninstall stopped at a prompt it could not answer.
+        internal static int Launch(SetupOptions options)
         {
             if (!Directory.Exists(AppPaths.App) || !File.Exists(AppPaths.AppExe))
             {
@@ -25,9 +28,12 @@ namespace VRPC.Setup
                     "--uninstall-temp",
                     "--root", AppPaths.Root
                 };
-                if (quiet) { arguments.Add("--quiet"); }
-                if (purge) { arguments.Add("--purge"); }
-                if (force) { arguments.Add("--force"); }
+                if (options.Quiet) { arguments.Add("--quiet"); }
+                if (options.Yes) { arguments.Add("--yes"); }
+                if (options.PurgeData) { arguments.Add("--purge"); }
+                if (options.Force) { arguments.Add("--force"); }
+                if (options.UseConsole) { arguments.Add("--console"); }
+                if (options.UsePanel) { arguments.Add("--panel"); }
 
                 ProcessStartInfo startInfo = new()
                 {
