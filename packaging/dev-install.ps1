@@ -1,6 +1,6 @@
 # Builds a self-contained Debug package, then runs its setup in update mode.
 param(
-    [string]$Version = "1.10.0-dev",
+    [string]$Version = "1.1.0-dev",
     [string]$Runtime = "win-x64"
 )
 

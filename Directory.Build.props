@@ -1,7 +1,7 @@
 <Project>
   <!-- Single source for the product version; the release script copies it into payload.json. -->
   <PropertyGroup>
-    <Version Condition="'$(Version)' == ''">1.10.0</Version>
+    <Version Condition="'$(Version)' == ''">1.1.0</Version>
     <Company>Viktir</Company>
     <Product>VRPC</Product>
     <AssemblyInformationalVersion>$(Version)</AssemblyInformationalVersion>
