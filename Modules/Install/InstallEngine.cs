@@ -423,16 +423,23 @@ namespace VRPC.Install
             catch { }
         }
 
+        // Runs only after the new version is committed and self-tested, so the migrated copy is
+        // already in place before the legacy tree disappears.
         private void CleanupLegacy()
         {
             if (_legacy is null) { return; }
 
             try
             {
-                string legacyBin = Path.GetDirectoryName(_legacy.AppExe) ?? "";
-                if (Directory.Exists(legacyBin)) { Directory.Delete(legacyBin, recursive: true); }
+                string legacyRoot = _legacy.Root;
+                if (Directory.Exists(legacyRoot) && !AppPaths.IsUnderRoot(legacyRoot))
+                {
+                    Directory.Delete(legacyRoot, recursive: true);
+                    _log.Write($"Removed the legacy installation at {legacyRoot}.");
+                    return;
+                }
+
                 if (File.Exists(AppPaths.LegacyLock)) { File.Delete(AppPaths.LegacyLock); }
-                _log.Write("Removed the legacy bin folder; legacy data was left in place as a backup.");
             }
             catch (Exception e)
             {
