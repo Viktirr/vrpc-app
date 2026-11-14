@@ -10,3 +10,7 @@
 
 # Python
 __pycache__/
+
+# installer-ui (Rust)
+/installer-ui/target/
+/installer-ui/.cargo/

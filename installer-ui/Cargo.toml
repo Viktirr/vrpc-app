@@ -1,0 +1,61 @@
+# vrpc-installer-ui — VRPC's first-run installer/uninstaller panel.
+#
+# A separate process, driven by VRPC setup over stdin/stdout. It lives here and
+# not in the framework repository: the framework is product-free, and an
+# installer is a product.
+#
+# The overlay framework is a pinned dependency. It is not published, so the
+# dependency is a git revision; a path would tie the build to one machine's
+# directory layout. Bump the rev deliberately — `Cargo.lock` records what was
+# actually built, so a rebuild is reproducible until someone edits it.
+#
+# To work on the framework and the panel at the same time, override the source
+# locally instead of editing this file: create `.cargo/config.toml` next to it
+# with a `paths` list (see README.md). That file is machine-local and must not
+# be committed.
+#
+# Third-party versions are pinned to match the framework's workspace table.
+# `winit` crosses the API boundary (the panel takes a winit window), so a second
+# major version of it is a type error rather than a compile-time warning. `ash`
+# is absent on purpose: since the rendering boundary the consumer names no
+# `vk::` type.
+
+[package]
+name = "vrpc-installer-ui"
+version = "0.0.0"
+edition = "2021"
+publish = false
+description = "VRPC's first-run installer and uninstaller panel"
+
+[[bin]]
+name = "vrpc-installer-ui"
+path = "src/main.rs"
+
+# Its own workspace root, so a stray parent manifest can never absorb it.
+[workspace]
+
+[dependencies]
+overlay-render = { git = "https://github.com/Viktirr/Argonsky", rev = "f6c07fb" }
+# `readback` is what `--dump` and the fallback report use; `scene` is the 2D
+# draw-list recorder the panel is made of.
+overlay-backend-vulkan = { git = "https://github.com/Viktirr/Argonsky", rev = "f6c07fb", features = ["dcomp", "readback", "scene"] }
+overlay-shell = { git = "https://github.com/Viktirr/Argonsky", rev = "f6c07fb" }
+overlay-text = { git = "https://github.com/Viktirr/Argonsky", rev = "f6c07fb" }
+overlay-draw = { git = "https://github.com/Viktirr/Argonsky", rev = "f6c07fb" }
+overlay-ui = { git = "https://github.com/Viktirr/Argonsky", rev = "f6c07fb" }
+# The oracle, optional and on by default so `--dump` works.
+overlay-verify = { git = "https://github.com/Viktirr/Argonsky", rev = "f6c07fb", optional = true }
+
+winit = "0.30"
+anyhow = "1"
+serde_json = "1"
+
+[features]
+default = ["verify"]
+verify = ["dep:overlay-verify"]
+
+# Same release profile as the framework (line tables only), so a crash log stays
+# symbolised at a small size cost.
+[profile.release]
+opt-level = 2
+debug = 1
