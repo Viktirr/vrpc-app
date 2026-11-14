@@ -114,15 +114,20 @@ namespace VRPC.Setup
         {
             ConsolePresenter console = new(options.Quiet, options.Yes);
 
-            if (options.UseConsole) { return console; }
-
-            bool forced = string.Equals(Environment.GetEnvironmentVariable("VRPC_UI_PANEL"), "1", StringComparison.Ordinal);
-            if (!forced)
+            // An unattended run must never open a window, so --quiet and --yes win
+            // even when --panel was passed as well.
+            if (options.UsePanel && (options.UseConsole || options.Quiet || options.Yes))
             {
-                if (options.Quiet || options.Yes) { return console; }
-                if (!OperatingSystem.IsWindows()) { return console; }
-                if (Console.IsInputRedirected || Console.IsOutputRedirected) { return console; }
+                Console.Error.WriteLine("--panel is ignored: --console, --quiet and --yes keep the console installer.");
             }
+
+            if (options.UseConsole || options.Quiet || options.Yes) { return console; }
+            if (!OperatingSystem.IsWindows()) { return console; }
+
+            // Redirected handles mean an automated run: nobody can click, and the
+            // panel would sit there until a timeout. --panel is the one way to say
+            // that a person is watching a console they cannot type into.
+            if (!options.UsePanel && (Console.IsInputRedirected || Console.IsOutputRedirected)) { return console; }
 
             OverlayPresenter? overlay = await OverlayPresenter.TryCreateAsync(fallback: console);
             return overlay is null ? console : overlay;
@@ -160,6 +165,7 @@ namespace VRPC.Setup
             Console.WriteLine("  --quiet                      No progress output; auto-confirm");
             Console.WriteLine("  --yes                        Auto-confirm prompts");
             Console.WriteLine("  --console                    Use the console installer instead of the setup panel");
+            Console.WriteLine("  --panel                      Use the setup panel even when the console is redirected");
             Console.WriteLine("  --help                       Show this help");
         }
     }
@@ -179,6 +185,7 @@ namespace VRPC.Setup
         public bool Quiet { get; private set; }
         public bool Yes { get; private set; }
         public bool UseConsole { get; private set; }
+        public bool UsePanel { get; private set; }
         public bool AllowDowngrade { get; private set; }
         public bool PurgeData { get; private set; }
         public RegistrationOptions Registration { get; private set; } = RegistrationOptions.Default;
@@ -210,6 +217,7 @@ namespace VRPC.Setup
                     case "--quiet": options.Quiet = true; options.Yes = true; break;
                     case "--yes": options.Yes = true; break;
                     case "--console": options.UseConsole = true; break;
+                    case "--panel": options.UsePanel = true; break;
                     case "--allow-downgrade": options.AllowDowngrade = true; break;
                     case "--purge": options.PurgeData = true; break;
                     case "--payload":

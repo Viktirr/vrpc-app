@@ -359,13 +359,20 @@ namespace VRPC.Install
                 ProcessStartInfo startInfo = new()
                 {
                     FileName = appExe,
-                    Arguments = "--selftest",
                     WorkingDirectory = AppPaths.App,
                     UseShellExecute = false,
                     CreateNoWindow = true,
                     RedirectStandardOutput = true,
                     RedirectStandardError = true
                 };
+
+                // The child resolves its own roots, and the self-test refuses to
+                // run outside <root>\app. Passing the root it was installed into
+                // is what makes that guard hold for --root and VRPC_ROOT as well
+                // as for the default location.
+                startInfo.ArgumentList.Add("--selftest");
+                startInfo.ArgumentList.Add("--root");
+                startInfo.ArgumentList.Add(AppPaths.Root);
 
                 using Process process = Process.Start(startInfo) ?? throw new InvalidOperationException("The self-test process did not start.");
                 bool exited = process.WaitForExit(15000);
