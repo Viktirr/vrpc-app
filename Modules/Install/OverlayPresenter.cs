@@ -23,7 +23,7 @@ namespace VRPC.Install
         // enough that a busy machine cannot trip it, short enough that a dead
         // renderer costs the user seconds instead of the whole install.
         public const int DefaultStallTimeoutMs = 6000;
-        public const int DefaultDismissWaitMs = 5000;
+        public const int DefaultDismissCeilingMs = 10 * 60 * 1000;
 
         private const int ProbeTimeoutMs = 5000;
         private const uint SpiGetScreenReader = 0x0046;
@@ -44,7 +44,7 @@ namespace VRPC.Install
             IPresenter? fallback = null,
             int readyTimeoutMs = DefaultReadyTimeoutMs,
             int stallTimeoutMs = DefaultStallTimeoutMs,
-            int dismissWaitMs = DefaultDismissWaitMs,
+            int dismissCeilingMs = DefaultDismissCeilingMs,
             CancellationToken cancellationToken = default)
         {
             if (!OperatingSystem.IsWindows()) { return null; }
@@ -61,14 +61,14 @@ namespace VRPC.Install
                 return null;
             }
 
-            return new OverlayPresenter(path, fallback ?? new ConsolePresenter(false, false), readyTimeoutMs, stallTimeoutMs, dismissWaitMs);
+            return new OverlayPresenter(path, fallback ?? new ConsolePresenter(false, false), readyTimeoutMs, stallTimeoutMs, dismissCeilingMs);
         }
 
         private readonly string _exePath;
         private readonly IPresenter _fallback;
         private readonly int _readyTimeoutMs;
         private readonly int _stallTimeoutMs;
-        private readonly int _dismissWaitMs;
+        private readonly int _dismissCeilingMs;
 
         private readonly object _stdinGate = new();
         private readonly object _logGate = new();
@@ -95,13 +95,13 @@ namespace VRPC.Install
         private volatile string _reason = "the panel was not attempted";
         private int? _childExitCode;
 
-        private OverlayPresenter(string exePath, IPresenter fallback, int readyTimeoutMs, int stallTimeoutMs, int dismissWaitMs)
+        private OverlayPresenter(string exePath, IPresenter fallback, int readyTimeoutMs, int stallTimeoutMs, int dismissCeilingMs)
         {
             _exePath = exePath;
             _fallback = fallback;
             _readyTimeoutMs = readyTimeoutMs;
             _stallTimeoutMs = Math.Max(0, stallTimeoutMs);
-            _dismissWaitMs = Math.Max(0, dismissWaitMs);
+            _dismissCeilingMs = Math.Max(0, dismissCeilingMs);
         }
 
         public Action<string>? Trace { get; set; }
@@ -369,9 +369,10 @@ namespace VRPC.Install
             await WaitForDismissAsync().ConfigureAwait(false);
         }
 
-        // After finish/fail the panel shows a Dismiss button. Closing stdin means
-        // "no more messages", not "exit": a child that exits on EOF could never be
-        // asked to show that button.
+        // After finish/fail the panel shows a Dismiss button, and the user is
+        // reading it. A fixed deadline here killed the window under them, so the
+        // wait is bounded by the heartbeat (a wedged panel stops ticking) and by
+        // a generous ceiling, never by how fast a human reads.
         private async Task WaitForDismissAsync()
         {
             try
@@ -390,17 +391,38 @@ namespace VRPC.Install
             Process? process = _process;
             if (process is null) { return; }
 
-            using CancellationTokenSource cts = new(_dismissWaitMs);
-            try
+            Stopwatch elapsed = Stopwatch.StartNew();
+            while (true)
             {
-                await process.WaitForExitAsync(cts.Token).ConfigureAwait(false);
-                RecordExitCode();
-                Trace?.Invoke($"[overlay] the panel was dismissed (exit code {_childExitCode})");
-            }
-            catch (OperationCanceledException)
-            {
-                Trace?.Invoke($"[overlay] the panel did not dismiss within {_dismissWaitMs} ms, killing it");
-                Kill();
+                try
+                {
+                    if (process.HasExited)
+                    {
+                        RecordExitCode();
+                        Trace?.Invoke($"[overlay] the panel was dismissed (exit code {_childExitCode})");
+                        break;
+                    }
+                }
+                catch
+                {
+                    break;
+                }
+
+                if (IsStalled())
+                {
+                    Trace?.Invoke("[overlay] the panel stopped heartbeating on a terminal screen, killing it");
+                    Kill();
+                    break;
+                }
+
+                if (elapsed.ElapsedMilliseconds >= _dismissCeilingMs)
+                {
+                    Trace?.Invoke($"[overlay] the panel was left open for {_dismissCeilingMs} ms, killing it");
+                    Kill();
+                    break;
+                }
+
+                await Task.Delay(200).ConfigureAwait(false);
             }
 
             await DrainPumpsAsync(500).ConfigureAwait(false);

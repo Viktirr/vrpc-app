@@ -11,15 +11,19 @@ namespace VRPC.Install
 
         public SetupLog()
         {
-            try
+            // The log normally lives inside the installation, but a failure to
+            // create that folder is exactly the case where the log matters most.
+            // %TEMP% covers a permission problem; the package folder covers a
+            // process that may only write next to itself (low integrity), where
+            // %TEMP% is out of reach too.
+            _path = TryCreate(AppPaths.Logs)
+                    ?? TryCreate(System.IO.Path.GetTempPath())
+                    ?? TryCreate(AppContext.BaseDirectory)
+                    ?? "";
+            Write($"VRPC setup {ProductInfo.Version}");
+            if (_path.Length > 0 && !AppPaths.IsUnderRoot(_path))
             {
-                Directory.CreateDirectory(AppPaths.Logs);
-                _path = System.IO.Path.Combine(AppPaths.Logs, $"setup-{DateTime.Now:yyyyMMdd-HHmmss}.log");
-                Write($"VRPC setup {ProductInfo.Version}");
-            }
-            catch
-            {
-                _path = "";
+                Write($"The install folder {AppPaths.Root} is not usable; this log was written outside it.");
             }
         }
 
@@ -39,5 +43,18 @@ namespace VRPC.Install
         }
 
         public void Error(string message) => Write("[ERROR] " + message);
+
+        private static string? TryCreate(string directory)
+        {
+            try
+            {
+                Directory.CreateDirectory(directory);
+                return System.IO.Path.Combine(directory, $"setup-{DateTime.Now:yyyyMMdd-HHmmss}.log");
+            }
+            catch
+            {
+                return null;
+            }
+        }
     }
 }

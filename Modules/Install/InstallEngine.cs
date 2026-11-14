@@ -66,7 +66,23 @@ namespace VRPC.Install
 
                 if (plan.ForceCloseRequired) { _log.Write("VRPC is running; the force-close prompt follows."); }
 
-                AppPaths.EnsureDirectories();
+                try
+                {
+                    AppPaths.EnsureDirectories();
+                }
+                catch (Exception e)
+                {
+                    _log.Error($"Could not create {AppPaths.Root}: {e}");
+
+                    // The one non-obvious cause of a denied install folder is a
+                    // setup started from a folder that runs with restricted
+                    // permissions; everything else is an ordinary access problem.
+                    string hint = e is UnauthorizedAccessException
+                        ? " If this setup was started from a sandboxed or otherwise restricted folder, move the package to a normal folder such as Desktop or Downloads and run it again."
+                        : "";
+
+                    return await FailureAsync(SetupExitCodes.Failed, $"The install folder {AppPaths.Root} could not be created: {e.Message}{hint}");
+                }
 
                 if (_legacy is not null)
                 {
