@@ -5,8 +5,9 @@
 //! user reads (license, steps, results); this side owns the pixels, the
 //! hit-testing and exactly one decision per session.
 //!
-//! Screens: consent, progress, done and failed. The window is borderless on a
-//! premultiplied-alpha surface, so the desktop shows through at `--alpha`.
+//! Screens: a prompt (consent or a question), progress, done and failed. The
+//! window is borderless on a premultiplied-alpha surface, so the desktop shows
+//! through at `--alpha`.
 //!
 //! The wire format, the ordering rules, the timeouts and the failure modes are
 //! in README.md. The short version: `hello` comes first, `ready` only after a
@@ -49,7 +50,12 @@ use winit::window::WindowId;
 
 /// Protocol major version. The parent refuses to drive a UI it does not
 /// recognise, because a mismatched binary would otherwise fail silently.
-const PROTO: u32 = 1;
+///
+/// 2 added the parent-supplied button triple, the `uninstall` decision and the
+/// mid-flow question. The engine asks more than one thing (consent, then a
+/// force-close when VRPC is still running), so a single hard-coded
+/// Install/Cancel pair could not say "Uninstall" or ask a second question.
+const PROTO: u32 = 2;
 
 /// The post-`ready` heartbeat. Process exit and stdout close are the only other
 /// liveness signals a parent has, and a lost device produces neither: the window
@@ -104,8 +110,32 @@ const MUTED: [f32; 4] = [0.62, 0.68, 0.80, 1.00];
 
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
 enum Decision {
-    Install,
+    /// The parent's primary action: install, update or repair.
+    Proceed,
+    /// The third button: remove an existing installation instead.
+    Uninstall,
     Cancel,
+}
+
+impl Decision {
+    /// What the parent reads on the wire. `proceed` rather than `install`
+    /// because the same button updates and repairs.
+    fn wire(self) -> &'static str {
+        match self {
+            Decision::Proceed => "proceed",
+            Decision::Uninstall => "uninstall",
+            Decision::Cancel => "cancel",
+        }
+    }
+
+    fn parse(value: &str) -> Option<Decision> {
+        match value {
+            "proceed" | "install" => Some(Decision::Proceed),
+            "uninstall" => Some(Decision::Uninstall),
+            "cancel" => Some(Decision::Cancel),
+            _ => None,
+        }
+    }
 }
 
 #[derive(Clone)]
@@ -113,6 +143,13 @@ struct Args {
     /// Synthesize the consent click instead of waiting for a mouse. Goes through
     /// the same `InputState` path a real click does, so it exercises the geometry.
     auto: Option<Decision>,
+    /// Synthesize the answer to a question mid-flow. A verification hook: with
+    /// nobody at the keyboard a question would otherwise wait forever.
+    auto_answer: Option<bool>,
+    /// Wait this long after the first present before the synthesized click. The
+    /// click otherwise beats the parent's `consent` line by a few milliseconds,
+    /// which makes a dump of the parent's copy impossible.
+    auto_delay: Duration,
     /// Auto-dismiss the terminal screen after this long. A verification hook:
     /// without it, an automated run needs a human to click Dismiss.
     auto_dismiss: Option<Duration>,
@@ -135,6 +172,8 @@ impl Default for Args {
     fn default() -> Self {
         Args {
             auto: None,
+            auto_answer: None,
+            auto_delay: Duration::from_millis(0),
             auto_dismiss: None,
             demo: false,
             dump: None,
@@ -157,11 +196,36 @@ impl Args {
         // with no protocol change at all — the same reason the framework's own
         // OVERLAY_* switches are environment variables.
         if let Ok(v) = std::env::var("VRPC_UI_AUTO") {
-            out.auto = match v.as_str() {
-                "install" => Some(Decision::Install),
-                "cancel" => Some(Decision::Cancel),
+            out.auto = Decision::parse(&v);
+        }
+        if let Ok(v) = std::env::var("VRPC_UI_AUTO_ANSWER") {
+            out.auto_answer = match v.as_str() {
+                "yes" => Some(true),
+                "no" => Some(false),
                 _ => None,
             };
+        }
+        if let Some(ms) = std::env::var("VRPC_UI_AUTO_DELAY_MS")
+            .ok()
+            .and_then(|v| v.parse::<u64>().ok())
+        {
+            out.auto_delay = Duration::from_millis(ms);
+        }
+        if let Ok(v) = std::env::var("VRPC_UI_DUMP") {
+            if !v.is_empty() {
+                out.dump = Some(v);
+            }
+        }
+        // The failure modes are environment as well, for the same reason: a
+        // parent that wants to exercise its fallback can set the variable in its
+        // own environment and the child inherits it, with no protocol support.
+        if let Ok(v) = std::env::var("VRPC_UI_SIMULATE") {
+            match v.as_str() {
+                "init-failure" => out.simulate_init_failure = true,
+                "hang" => out.simulate_hang = true,
+                "stall" => out.simulate_stall = true,
+                _ => {}
+            }
         }
         if let Some(ms) = std::env::var("VRPC_UI_AUTO_DISMISS_MS")
             .ok()
@@ -174,11 +238,22 @@ impl Args {
             let value = argv.get(i + 1);
             match argv[i].as_str() {
                 "--auto" => {
-                    out.auto = match value.map(|s| s.as_str()) {
-                        Some("install") => Some(Decision::Install),
-                        Some("cancel") => Some(Decision::Cancel),
+                    out.auto = value.and_then(|s| Decision::parse(s));
+                    i += 2;
+                }
+                "--auto-answer" => {
+                    out.auto_answer = match value.map(|s| s.as_str()) {
+                        Some("yes") => Some(true),
+                        Some("no") => Some(false),
                         _ => None,
                     };
+                    i += 2;
+                }
+                "--auto-delay" => {
+                    out.auto_delay = value
+                        .and_then(|s| s.parse::<u64>().ok())
+                        .map(Duration::from_millis)
+                        .unwrap_or(out.auto_delay);
                     i += 2;
                 }
                 "--demo" => {
@@ -241,14 +316,99 @@ impl Args {
 // The parent protocol: one JSON object per line.
 // ---------------------------------------------------------------------------
 
+#[derive(Clone, Copy, PartialEq, Eq, Debug)]
+enum ButtonStyle {
+    Primary,
+    Danger,
+    Ghost,
+}
+
+impl ButtonStyle {
+    fn parse(value: &str) -> ButtonStyle {
+        match value {
+            "danger" => ButtonStyle::Danger,
+            "ghost" => ButtonStyle::Ghost,
+            _ => ButtonStyle::Primary,
+        }
+    }
+}
+
+/// A button the parent labelled. The panel carries no product words of its own:
+/// the same screen is an install, an update, a repair and an uninstall.
+#[derive(Clone, Debug)]
+struct Button {
+    label: String,
+    style: ButtonStyle,
+}
+
+impl Button {
+    fn new(label: &str, style: ButtonStyle) -> Button {
+        Button {
+            label: label.to_string(),
+            style,
+        }
+    }
+}
+
+/// One prompt: the consent screen or a question asked mid-flow. Both are the
+/// same shape, so the parent only ever composes one kind of message.
+#[derive(Clone, Debug)]
+struct Prompt {
+    title: String,
+    subtitle: String,
+    text: String,
+    primary: Button,
+    secondary: Option<Button>,
+    close: String,
+}
+
+impl Prompt {
+    /// What the panel shows when it has not been told anything: the `--demo`
+    /// and no-parent case. The real copy always comes from the installer.
+    fn fallback() -> Prompt {
+        Prompt {
+            title: "VRPC Setup".to_string(),
+            subtitle: format!("protocol {PROTO}"),
+            text: CONSENT_BODY.to_string(),
+            primary: Button::new("Install", ButtonStyle::Primary),
+            secondary: None,
+            close: "Close".to_string(),
+        }
+    }
+
+    /// The same, for a question with no parent: the second button has to mean
+    /// "no" or a hand-driven run has no way to decline.
+    fn question() -> Prompt {
+        Prompt {
+            title: "VRPC is still running".to_string(),
+            subtitle: String::new(),
+            text: "Continue once the running copy has been closed?".to_string(),
+            primary: Button::new("Close VRPC", ButtonStyle::Danger),
+            secondary: Some(Button::new("Keep running", ButtonStyle::Ghost)),
+            close: "Not now".to_string(),
+        }
+    }
+}
+
+// ---------------------------------------------------------------------------
+// The parent protocol: one JSON object per line.
+// ---------------------------------------------------------------------------
+
 #[derive(Debug)]
 enum FromParent {
-    /// The consent/license text, owned by the parent. Without this the child
-    /// would have to hard-code a copy of the license and drift from it.
-    Consent(String),
-    Progress(String),
-    Finish(String),
-    Fail(String),
+    /// The consent/license screen. Without this the child would have to
+    /// hard-code a copy of the license and drift from it.
+    Consent(Prompt),
+    /// A second question, asked while the parent is mid-flow.
+    Question(Prompt),
+    Progress {
+        title: Option<String>,
+        text: String,
+        done: usize,
+        total: usize,
+    },
+    Finish { title: Option<String>, text: String },
+    Fail { title: Option<String>, text: String },
     Closed,
 }
 
@@ -261,6 +421,49 @@ fn emit(value: serde_json::Value) {
 
 fn child_event(name: &str) {
     emit(json!({ "event": name }));
+}
+
+/// Read a parent prompt, keeping the panel's own defaults for anything the
+/// parent left out. The parent owns the words; the panel owns the fallbacks
+/// used by `--demo` and by a hand-driven run.
+fn parse_prompt(value: &serde_json::Value, base: Prompt) -> Prompt {
+    let string = |key: &str| {
+        value
+            .get(key)
+            .and_then(|v| v.as_str())
+            .map(|s| s.to_string())
+    };
+    let button = |key: &str| {
+        let raw = value.get(key)?;
+        let label = raw.get("label").and_then(|v| v.as_str())?;
+        if label.is_empty() {
+            return None;
+        }
+        let style = raw.get("style").and_then(|v| v.as_str()).unwrap_or("primary");
+        Some(Button {
+            label: label.to_string(),
+            style: ButtonStyle::parse(style),
+        })
+    };
+    Prompt {
+        title: string("title").unwrap_or(base.title),
+        subtitle: string("subtitle").unwrap_or(base.subtitle),
+        text: string("text").unwrap_or(base.text),
+        primary: button("primary").unwrap_or(base.primary),
+        secondary: match value.get("secondary") {
+            None => base.secondary,
+            Some(serde_json::Value::Null) => None,
+            Some(_) => button("secondary"),
+        },
+        close: string("close").unwrap_or(base.close),
+    }
+}
+
+fn parse_count(value: &serde_json::Value, key: &str) -> usize {
+    value
+        .get(key)
+        .and_then(|v| v.as_u64())
+        .unwrap_or(0) as usize
 }
 
 fn spawn_parent_reader(tx: Sender<FromParent>) {
@@ -282,11 +485,27 @@ fn spawn_parent_reader(tx: Sender<FromParent>) {
                     .unwrap_or_default()
                     .to_string()
             };
+            let title = value
+                .get("title")
+                .and_then(|v| v.as_str())
+                .map(|s| s.to_string());
             let message = match value.get("event").and_then(|v| v.as_str()) {
-                Some("consent") => FromParent::Consent(text("text")),
-                Some("progress") => FromParent::Progress(text("text")),
-                Some("finish") => FromParent::Finish(text("text")),
-                Some("fail") => FromParent::Fail(text("text")),
+                Some("consent") => FromParent::Consent(parse_prompt(&value, Prompt::fallback())),
+                Some("question") => FromParent::Question(parse_prompt(&value, Prompt::question())),
+                Some("progress") => FromParent::Progress {
+                    title,
+                    text: text("text"),
+                    done: parse_count(&value, "done"),
+                    total: parse_count(&value, "total"),
+                },
+                Some("finish") => FromParent::Finish {
+                    title,
+                    text: text("text"),
+                },
+                Some("fail") => FromParent::Fail {
+                    title,
+                    text: text("text"),
+                },
                 _ => continue,
             };
             if tx.send(message).is_err() {
@@ -304,9 +523,38 @@ fn spawn_parent_reader(tx: Sender<FromParent>) {
 #[derive(Clone, Copy, PartialEq, Eq)]
 enum Kind {
     Consent,
+    Question,
     Progress,
     Done,
     Failed,
+}
+
+/// The buttons a screen offers. Every slot is optional because a progress
+/// screen offers none and a result screen offers only Dismiss.
+#[derive(Clone, Default)]
+struct Buttons {
+    primary: Option<Button>,
+    secondary: Option<Button>,
+    /// Always a ghost button: it declines, it never proceeds.
+    close: Option<Button>,
+}
+
+impl Buttons {
+    fn from_prompt(prompt: &Prompt) -> Buttons {
+        Buttons {
+            primary: Some(prompt.primary.clone()),
+            secondary: prompt.secondary.clone(),
+            close: Some(Button::new(&prompt.close, ButtonStyle::Ghost)),
+        }
+    }
+
+    fn dismiss(style: ButtonStyle) -> Buttons {
+        Buttons {
+            primary: Some(Button::new("Dismiss", style)),
+            secondary: None,
+            close: None,
+        }
+    }
 }
 
 /// Everything the panel needs to draw, owned, so the drawing function can take
@@ -318,6 +566,7 @@ struct PanelView {
     body: String,
     steps: Vec<String>,
     progress: f32,
+    buttons: Buttons,
 }
 
 /// Placeholder copy. The real license/terms text belongs with the application
@@ -337,34 +586,45 @@ Your settings and listening history are kept when you uninstall.";
 #[derive(Clone, Copy)]
 struct Geom {
     panel: Rect,
-    primary: Rect,
-    secondary: Rect,
+    primary: Option<Rect>,
+    secondary: Option<Rect>,
+    close: Option<Rect>,
 }
 
 impl Geom {
-    fn new(extent: Extent) -> Geom {
+    fn new(extent: Extent, buttons: &Buttons) -> Geom {
         let w = extent.width as f32;
         let h = extent.height as f32;
         let panel = Rect::new(MARGIN, MARGIN, w - MARGIN * 2.0, h - MARGIN * 2.0);
         let bw = 148.0;
         let bh = 40.0;
         let by = panel.y + panel.h - bh - 26.0;
-        let primary = Rect::new(panel.x + panel.w - bw - 28.0, by, bw, bh);
-        let secondary = Rect::new(primary.x - bw - 12.0, by, bw, bh);
+        let gap = 12.0;
+        let mut right = panel.x + panel.w - 28.0;
+        let mut place = |present: bool| {
+            if !present {
+                return None;
+            }
+            let rect = Rect::new(right - bw, by, bw, bh);
+            right -= bw + gap;
+            Some(rect)
+        };
+        // Right to left: the primary action is the rightmost button, the way
+        // every other Windows dialog orders its buttons.
+        let primary = place(buttons.primary.is_some());
+        let secondary = place(buttons.secondary.is_some());
+        let close = place(buttons.close.is_some());
         Geom {
             panel,
             primary,
             secondary,
+            close,
         }
     }
-}
 
-fn labels_for(kind: Kind) -> (&'static str, Option<&'static str>) {
-    match kind {
-        Kind::Consent => ("Install", Some("Cancel")),
-        Kind::Progress => ("Working…", None),
-        Kind::Done => ("Dismiss", None),
-        Kind::Failed => ("Dismiss", None),
+    /// The row the buttons sit in, for anything that has to line up with them.
+    fn button_row_top(&self) -> f32 {
+        self.panel.y + self.panel.h - 40.0 - 26.0
     }
 }
 
@@ -383,6 +643,25 @@ fn draw_button(
     let x = rect.x + (rect.w - width) * 0.5;
     let y = rect.y + (rect.h - fonts.line_height(px)) * 0.5;
     list.text(&layout, x, y, fg);
+}
+
+/// A button named and styled by the parent. A ghost is a low-alpha fill; the
+/// other two are solid and only brighten on hover, so the primary action reads
+/// as the default even when it is an update rather than an installation.
+fn draw_action_button(
+    list: &mut DrawList,
+    fonts: &mut FontSystem,
+    rect: Rect,
+    button: &Button,
+    hover: bool,
+    k: f32,
+) {
+    let (rgb, alpha) = match button.style {
+        ButtonStyle::Ghost => (GHOST_RGB, if hover { 0.34 } else { 0.18 }),
+        ButtonStyle::Danger => (DANGER_RGB, if hover { 1.0 } else { 0.85 }),
+        ButtonStyle::Primary => (PRIMARY_RGB, if hover { 1.0 } else { 0.85 }),
+    };
+    draw_button(list, fonts, rect, &button.label, pm(rgb, alpha), fade(TEXT, k));
 }
 
 /// Draw the panel. `input` is read only for hover state; clicks are handled
@@ -445,7 +724,7 @@ fn draw_panel(
     }
 
     match view.kind {
-        Kind::Consent | Kind::Done | Kind::Failed => {
+        Kind::Consent | Kind::Question | Kind::Done | Kind::Failed => {
             let body = fonts.layout(&view.body, BODY_PX, inner_w);
             list.text(&body, g.panel.x + pad, y, fade(TEXT, k));
         }
@@ -462,7 +741,7 @@ fn draw_panel(
                 list.text(&lay, g.panel.x + pad, y, fade(MUTED, k));
             }
             // Progress bar: a track plus a fill, sized by the step count.
-            let bar = Rect::new(g.panel.x + pad, g.primary.y - 36.0, inner_w, 6.0);
+            let bar = Rect::new(g.panel.x + pad, g.button_row_top() - 30.0, inner_w, 6.0);
             list.fill_round_rect(bar, 3.0, fade(pm([1.0, 1.0, 1.0], 0.10), k));
             let filled = bar.w * view.progress.clamp(0.0, 1.0);
             if filled > 0.5 {
@@ -475,33 +754,14 @@ fn draw_panel(
         }
     }
 
-    let (primary_label, secondary_label) = labels_for(view.kind);
-    let interactive = view.kind != Kind::Progress;
-    let primary_hover = interactive && input.hovering(&g.primary);
-    let primary_rgb = if view.kind == Kind::Failed {
-        DANGER_RGB
-    } else {
-        PRIMARY_RGB
-    };
-    draw_button(
-        list,
-        fonts,
-        g.primary,
-        primary_label,
-        pm(primary_rgb, if primary_hover { 1.0 } else { 0.85 }),
-        fade(TEXT, k),
-    );
-
-    if let Some(label) = secondary_label {
-        let hover = input.hovering(&g.secondary);
-        draw_button(
-            list,
-            fonts,
-            g.secondary,
-            label,
-            pm(GHOST_RGB, if hover { 0.34 } else { 0.18 }),
-            fade(TEXT, k),
-        );
+    if let (Some(rect), Some(button)) = (g.close, view.buttons.close.as_ref()) {
+        draw_action_button(list, fonts, rect, button, input.hovering(&rect), k);
+    }
+    if let (Some(rect), Some(button)) = (g.secondary, view.buttons.secondary.as_ref()) {
+        draw_action_button(list, fonts, rect, button, input.hovering(&rect), k);
+    }
+    if let (Some(rect), Some(button)) = (g.primary, view.buttons.primary.as_ref()) {
+        draw_action_button(list, fonts, rect, button, input.hovering(&rect), k);
     }
 }
 
@@ -595,13 +855,17 @@ impl Ui {
             } else {
                 Reveal::new(0.0)
             },
-            view: PanelView {
-                kind: Kind::Consent,
-                title: "VRPC Setup".to_string(),
-                subtitle: format!("protocol {PROTO}"),
-                body: CONSENT_BODY.to_string(),
-                steps: Vec::new(),
-                progress: 0.0,
+            view: {
+                let prompt = Prompt::fallback();
+                PanelView {
+                    kind: Kind::Consent,
+                    title: prompt.title.clone(),
+                    subtitle: prompt.subtitle.clone(),
+                    body: prompt.text.clone(),
+                    steps: Vec::new(),
+                    progress: 0.0,
+                    buttons: Buttons::from_prompt(&prompt),
+                }
             },
             presented: 0,
             dumped: false,
@@ -611,7 +875,7 @@ impl Ui {
     }
 
     fn geom(&self) -> Geom {
-        Geom::new(self.extent)
+        Geom::new(self.extent, &self.view.buttons)
     }
 
     /// Render one frame. Returns whether another frame is owed for the entrance
@@ -723,12 +987,18 @@ struct App {
     ui: Option<Ui>,
     exit_code: i32,
     kind: Kind,
-    /// The consent/license text. Starts as the placeholder and is replaced by
-    /// the parent's `consent` event, so the license has exactly one owner.
-    consent_text: String,
+    /// The consent prompt. Starts as the panel's own fallback and is replaced by
+    /// the parent's `consent` event, so the words have exactly one owner.
+    consent: Prompt,
+    /// The question on screen, if one is being asked. `None` outside a question.
+    question: Option<Prompt>,
+    /// The `progress` title: "Installing" and "Uninstalling" are the same screen.
+    progress_title: String,
     /// When the flow reached a terminal screen, for `--auto-dismiss`.
     terminal_at: Option<Instant>,
     steps: Vec<String>,
+    step_total: usize,
+    final_title: Option<String>,
     final_text: Option<String>,
     demo_started: Option<Instant>,
     demo_step: usize,
@@ -742,15 +1012,20 @@ struct App {
 
 impl App {
     fn new(args: Args, rx: Receiver<FromParent>) -> App {
+        let consent = Prompt::fallback();
         App {
             args,
             rx,
             ui: None,
             exit_code: EXIT_OK,
             kind: Kind::Consent,
-            consent_text: CONSENT_BODY.to_string(),
+            consent,
+            question: None,
+            progress_title: "Working".to_string(),
             terminal_at: None,
             steps: Vec::new(),
+            step_total: 0,
+            final_title: None,
             final_text: None,
             demo_started: None,
             demo_step: 0,
@@ -773,27 +1048,43 @@ impl App {
     }
 
     fn set_view(&mut self) {
-        let Some(ui) = self.ui.as_mut() else { return };
-        ui.view = match self.kind {
+        let view = match self.kind {
             Kind::Consent => PanelView {
                 kind: Kind::Consent,
-                title: "VRPC Setup".to_string(),
-                subtitle: format!("protocol {PROTO}"),
-                body: self.consent_text.clone(),
+                title: self.consent.title.clone(),
+                subtitle: self.consent.subtitle.clone(),
+                body: self.consent.text.clone(),
                 steps: Vec::new(),
                 progress: 0.0,
+                buttons: Buttons::from_prompt(&self.consent),
             },
+            Kind::Question => {
+                let prompt = self.question.clone().unwrap_or_else(Prompt::question);
+                PanelView {
+                    kind: Kind::Question,
+                    title: prompt.title.clone(),
+                    subtitle: prompt.subtitle.clone(),
+                    body: prompt.text.clone(),
+                    steps: Vec::new(),
+                    progress: 0.0,
+                    buttons: Buttons::from_prompt(&prompt),
+                }
+            }
             Kind::Progress => PanelView {
                 kind: Kind::Progress,
-                title: "Installing VRPC".to_string(),
+                title: self.progress_title.clone(),
                 subtitle: String::new(),
                 body: String::new(),
                 steps: self.steps.clone(),
-                progress: self.steps.len() as f32 / DEMO_STEPS.len() as f32,
+                progress: self.progress_fraction(),
+                buttons: Buttons::default(),
             },
             Kind::Done => PanelView {
                 kind: Kind::Done,
-                title: "VRPC is installed".to_string(),
+                title: self
+                    .final_title
+                    .clone()
+                    .unwrap_or_else(|| "VRPC setup is complete".to_string()),
                 subtitle: String::new(),
                 body: self
                     .final_text
@@ -801,10 +1092,14 @@ impl App {
                     .unwrap_or_else(|| "The application is now installed.".to_string()),
                 steps: Vec::new(),
                 progress: 1.0,
+                buttons: Buttons::dismiss(ButtonStyle::Primary),
             },
             Kind::Failed => PanelView {
                 kind: Kind::Failed,
-                title: "Installation failed".to_string(),
+                title: self
+                    .final_title
+                    .clone()
+                    .unwrap_or_else(|| "VRPC setup failed".to_string()),
                 subtitle: String::new(),
                 body: self
                     .final_text
@@ -812,8 +1107,22 @@ impl App {
                     .unwrap_or_else(|| "No changes were made.".to_string()),
                 steps: Vec::new(),
                 progress: 0.0,
+                buttons: Buttons::dismiss(ButtonStyle::Danger),
             },
         };
+
+        if let Some(ui) = self.ui.as_mut() {
+            ui.view = view;
+        }
+    }
+
+    /// How much of the step list is done. Clamped short of 1.0 because the last
+    /// fraction of an install is the part that can still fail.
+    fn progress_fraction(&self) -> f32 {
+        if self.step_total == 0 {
+            return 0.0;
+        }
+        (self.steps.len() as f32 / self.step_total as f32).clamp(0.0, 0.95)
     }
 
     /// Synthesize a click on `rect` through the same `InputState` path a real
@@ -832,18 +1141,19 @@ impl App {
             return;
         }
         self.decided = true;
+        emit(json!({ "event": "decision", "value": decision.wire() }));
+
         match decision {
             Decision::Cancel => {
-                emit(json!({ "event": "decision", "value": "cancel" }));
                 self.exit_code = EXIT_CANCELLED;
                 event_loop.exit();
             }
-            Decision::Install => {
-                emit(json!({ "event": "decision", "value": "install" }));
+            Decision::Proceed | Decision::Uninstall => {
                 self.set_kind(Kind::Progress);
                 if self.args.demo {
                     self.demo_started = Some(Instant::now());
                     self.demo_step = 0;
+                    self.step_total = DEMO_STEPS.len();
                     self.steps = vec![DEMO_STEPS[0].to_string()];
                 }
                 self.set_view();
@@ -851,32 +1161,54 @@ impl App {
         }
     }
 
+    /// Answer the question on screen and go back to waiting for the parent. A
+    /// answered question is terminal for itself only: the flow continues, which
+    /// is why this cannot go through `decide`.
+    fn answer(&mut self, yes: bool, _event_loop: &ActiveEventLoop) {
+        if self.kind != Kind::Question {
+            return;
+        }
+        emit(json!({ "event": "answer", "value": if yes { "yes" } else { "no" } }));
+        self.question = None;
+        self.set_kind(Kind::Progress);
+    }
+
     fn handle_clicks(&mut self, event_loop: &ActiveEventLoop) {
         let geom = self.ui.as_ref().map(|u| u.geom());
-        let (primary, secondary) = match (self.ui.as_ref(), geom) {
+        let (primary, secondary, close) = match (self.ui.as_ref(), geom) {
             (Some(ui), Some(g)) => (
-                ui.input.clicked(&g.primary),
-                ui.input.clicked(&g.secondary),
+                g.primary.map(|r| ui.input.clicked(&r)).unwrap_or(false),
+                g.secondary.map(|r| ui.input.clicked(&r)).unwrap_or(false),
+                g.close.map(|r| ui.input.clicked(&r)).unwrap_or(false),
             ),
-            _ => (false, false),
+            _ => (false, false, false),
         };
 
         match self.kind {
             Kind::Consent => {
                 if primary {
-                    self.decide(Decision::Install, event_loop);
+                    self.decide(Decision::Proceed, event_loop);
                 } else if secondary {
+                    self.decide(Decision::Uninstall, event_loop);
+                } else if close {
                     self.decide(Decision::Cancel, event_loop);
                 }
             }
-            Kind::Done => {
+            Kind::Question => {
                 if primary {
+                    self.answer(true, event_loop);
+                } else if secondary || close {
+                    self.answer(false, event_loop);
+                }
+            }
+            Kind::Done => {
+                if primary || close {
                     self.exit_code = EXIT_OK;
                     event_loop.exit();
                 }
             }
             Kind::Failed => {
-                if primary {
+                if primary || close {
                     self.exit_code = EXIT_UI_FAILED;
                     event_loop.exit();
                 }
@@ -888,21 +1220,47 @@ impl App {
     fn drain_parent(&mut self, event_loop: &ActiveEventLoop) {
         loop {
             match self.rx.try_recv() {
-                Ok(FromParent::Consent(text)) => {
-                    self.consent_text = text;
+                Ok(FromParent::Consent(prompt)) => {
+                    self.consent = prompt;
                     if self.kind == Kind::Consent {
                         self.set_view();
                     }
                 }
-                Ok(FromParent::Progress(text)) => {
+                Ok(FromParent::Question(prompt)) => {
+                    // A question only means something once the flow is running,
+                    // and a second one cannot arrive before this one is answered.
+                    if self.decided && self.kind != Kind::Question {
+                        self.question = Some(prompt);
+                        self.set_kind(Kind::Question);
+                    }
+                }
+                Ok(FromParent::Progress {
+                    title,
+                    text,
+                    done,
+                    total,
+                }) => {
+                    if let Some(title) = title {
+                        self.progress_title = title;
+                    }
+                    if total > 0 {
+                        self.step_total = total;
+                    }
+                    if done > self.steps.len() + 1 {
+                        // A gap means the parent skipped a step; trust the count
+                        // so the bar does not stall behind the text.
+                        self.step_total = self.step_total.max(done);
+                    }
                     self.steps.push(text);
                     self.set_kind(Kind::Progress);
                 }
-                Ok(FromParent::Finish(text)) => {
+                Ok(FromParent::Finish { title, text }) => {
+                    self.final_title = title;
                     self.final_text = Some(text);
                     self.set_kind(Kind::Done);
                 }
-                Ok(FromParent::Fail(text)) => {
+                Ok(FromParent::Fail { title, text }) => {
+                    self.final_title = title;
                     self.final_text = Some(text);
                     self.set_kind(Kind::Failed);
                 }
@@ -947,13 +1305,15 @@ impl App {
                 .collect();
             self.set_view();
         } else if want >= DEMO_STEPS.len() + 2 && self.kind == Kind::Progress {
+            self.final_title = Some("VRPC is installed".to_string());
             self.final_text = Some(format!(
                 "Installed to %LOCALAPPDATA%\\Viktir\\VRPCApp. {} steps completed.",
                 DEMO_STEPS.len()
             ));
             self.set_kind(Kind::Done);
-        } else if want >= DEMO_STEPS.len() + 6 && self.kind == Kind::Done {            if let Some(g) = self.ui.as_ref().map(|u| u.geom()) {
-                self.synth_click(g.primary);
+        } else if want >= DEMO_STEPS.len() + 6 && self.kind == Kind::Done {
+            if let Some(rect) = self.ui.as_ref().and_then(|u| u.geom().primary) {
+                self.synth_click(rect);
                 self.handle_clicks(event_loop);
             }
         }
@@ -982,12 +1342,18 @@ impl ApplicationHandler for App {
     fn window_event(&mut self, event_loop: &ActiveEventLoop, _id: WindowId, event: WindowEvent) {
         match event {
             WindowEvent::CloseRequested => {
-                // Closing the window on the consent screen is a cancel; once the
-                // work is done it is an ordinary dismissal.
+                // Closing the window is a cancel on a prompt and an ordinary
+                // dismissal on a result screen. On a question it is the same
+                // "no" as the second button, because the flow still needs an
+                // answer before it can continue or give up.
+                if self.kind == Kind::Question {
+                    self.answer(false, event_loop);
+                    return;
+                }
                 self.exit_code = match self.kind {
                     Kind::Consent | Kind::Progress => EXIT_CANCELLED,
                     Kind::Done => EXIT_OK,
-                    Kind::Failed => EXIT_UI_FAILED,
+                    _ => EXIT_UI_FAILED,
                 };
                 event_loop.exit();
             }
@@ -1018,10 +1384,11 @@ impl ApplicationHandler for App {
                     return;
                 }
                 match event.physical_key {
-                    // Escape cancels on the consent screen and dismisses a
-                    // terminal screen.
+                    // Escape cancels a prompt, answers "no" to a question and
+                    // dismisses a terminal screen.
                     PhysicalKey::Code(KeyCode::Escape) => match self.kind {
                         Kind::Consent => self.decide(Decision::Cancel, event_loop),
+                        Kind::Question => self.answer(false, event_loop),
                         Kind::Done => {
                             self.exit_code = EXIT_OK;
                             event_loop.exit();
@@ -1034,7 +1401,8 @@ impl ApplicationHandler for App {
                     },
                     // Enter activates the primary button.
                     PhysicalKey::Code(KeyCode::Enter) => match self.kind {
-                        Kind::Consent => self.decide(Decision::Install, event_loop),
+                        Kind::Consent => self.decide(Decision::Proceed, event_loop),
+                        Kind::Question => self.answer(true, event_loop),
                         Kind::Done => {
                             self.exit_code = EXIT_OK;
                             event_loop.exit();
@@ -1062,13 +1430,44 @@ impl ApplicationHandler for App {
         let demo_running = self.tick_demo(now, event_loop);
 
         // The synthesized click waits for a presented frame: `ready` promises
-        // pixels, so a decision must never precede one.
+        // pixels, so a decision must never precede one. The optional delay lets
+        // the parent's own copy arrive first, which is what makes a dump of the
+        // real consent screen possible.
         if let (Some(decision), Some(g)) = (self.args.auto, self.ui.as_ref().map(|u| u.geom())) {
             let presented = self.ui.as_ref().map(|u| u.presented).unwrap_or(0);
-            if presented >= 1 && !self.decided && self.kind == Kind::Consent {
-                match decision {
-                    Decision::Install => self.synth_click(g.primary),
-                    Decision::Cancel => self.synth_click(g.secondary),
+            let due = self
+                .ui
+                .as_ref()
+                .and_then(|u| u.first_present)
+                .map(|t| now.duration_since(t) >= self.args.auto_delay)
+                .unwrap_or(false);
+            if presented >= 1 && due && !self.decided && self.kind == Kind::Consent {
+                let rect = match decision {
+                    Decision::Proceed => g.primary,
+                    // Wait for the parent's prompt: the panel's own fallback has
+                    // no Uninstall button, and clicking the primary instead would
+                    // silently test the wrong path.
+                    Decision::Uninstall => g.secondary,
+                    Decision::Cancel => g.close,
+                };
+                if let Some(rect) = rect {
+                    self.synth_click(rect);
+                }
+            }
+        }
+
+        // The same for a question, which the parent can ask at any point after
+        // the decision, and which would otherwise need a human to answer.
+        if let (Some(answer), Some(g)) = (self.args.auto_answer, self.ui.as_ref().map(|u| u.geom())) {
+            let presented = self.ui.as_ref().map(|u| u.presented).unwrap_or(0);
+            if presented >= 1 && self.kind == Kind::Question {
+                let rect = if answer {
+                    g.primary
+                } else {
+                    g.secondary.or(g.close)
+                };
+                if let Some(rect) = rect {
+                    self.synth_click(rect);
                 }
             }
         }
@@ -1099,8 +1498,8 @@ impl ApplicationHandler for App {
         // automated run would end in a kill instead of an exit code.
         if let (Some(grace), Some(at)) = (self.args.auto_dismiss, self.terminal_at) {
             if now.duration_since(at) >= grace {
-                if let Some(g) = self.ui.as_ref().map(|u| u.geom()) {
-                    self.synth_click(g.primary);
+                if let Some(rect) = self.ui.as_ref().and_then(|u| u.geom().primary) {
+                    self.synth_click(rect);
                     self.handle_clicks(event_loop);
                 }
             }
@@ -1236,6 +1635,13 @@ fn probe() -> anyhow::Result<()> {
 fn main() -> anyhow::Result<()> {
     let args = Args::parse();
 
+    // A probe is a probe: it must answer the capability question even when the
+    // inherited environment asks for a simulated failure, because the parent
+    // runs it before deciding whether to spawn this binary at all.
+    if args.probe {
+        return probe();
+    }
+
     // Always the first line, before anything can fail: the parent's timeout then
     // starts from a known point rather than from "the process exists".
     emit(json!({ "event": "hello", "proto": PROTO }));
@@ -1262,9 +1668,6 @@ fn main() -> anyhow::Result<()> {
         loop {
             std::thread::sleep(Duration::from_secs(3600));
         }
-    }
-    if args.probe {
-        return probe();
     }
 
     let (tx, rx) = channel();

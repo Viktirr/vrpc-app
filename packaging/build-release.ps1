@@ -46,6 +46,30 @@ dotnet publish (Join-Path $repoRoot "VRPC.csproj") `
     -o $publishDirectory
 
 Get-ChildItem $publishDirectory -Recurse -File | Where-Object { $_.Extension -in ".pdb", ".xml" } | Remove-Item -Force
+
+# The setup panel: a separate Rust process that VRPC.exe spawns. It is Windows
+# only, so a linux-x64 publish simply ships without it and setup falls back to
+# the console. A release must never lose it silently, so a failed build stops
+# the package here instead of producing one that can only use the console.
+if ($Runtime -like "win-*") {
+    $installerUiDirectory = Join-Path $repoRoot "installer-ui"
+    $installerUiExe = Join-Path $installerUiDirectory "target\release\vrpc-installer-ui.exe"
+    Write-Host "Building the setup panel (cargo build --release --locked)..."
+
+    Push-Location $installerUiDirectory
+    try {
+        cargo build --release --locked
+        if ($LASTEXITCODE -ne 0) { throw "cargo build failed for installer-ui (exit $LASTEXITCODE)." }
+    }
+    finally {
+        Pop-Location
+    }
+
+    if (-not (Test-Path $installerUiExe)) { throw "The setup panel was not produced at $installerUiExe." }
+    Copy-Item -LiteralPath $installerUiExe -Destination (Join-Path $publishDirectory "vrpc-installer-ui.exe") -Force
+    Write-Host "Setup panel: $([System.IO.Path]::GetFileName($installerUiExe)) $((Get-Item $installerUiExe).Length) bytes"
+}
+
 $reportedVersion = (& (Join-Path $publishDirectory "VRPC.exe") --version).Trim()
 if ($reportedVersion -notmatch [regex]::Escape($Version)) {
     throw "Published executable reports '$reportedVersion', expected version '$Version'."

@@ -1,8 +1,8 @@
-using System.Globalization;
-
 namespace VRPC.Install
 {
-    // Console implementation of the presenter seam.
+    // Console implementation of the presenter seam. It stays the accessible path
+    // and the fallback: a Vulkan window has no accessibility tree, and Linux has
+    // no overlay at all.
     public sealed class ConsolePresenter : IPresenter
     {
         private readonly bool _quiet;
@@ -14,92 +14,85 @@ namespace VRPC.Install
             _yes = yes;
         }
 
-        public bool Confirm(InstallPlan plan)
+        public Task<InstallDecision> ConfirmAsync(ConfirmPrompt prompt, CancellationToken cancellationToken = default)
         {
-            if (_quiet || _yes) { return true; }
+            if (_quiet || _yes) { return Task.FromResult(InstallDecision.Proceed); }
 
             Console.WriteLine();
-            switch (plan.Action)
-            {
-                case InstallAction.Install:
-                    Console.WriteLine(ConsentText(plan));
-                    Console.Write("Proceed with installation? [N/y]: ");
-                    return IsYes(Console.ReadLine());
-                case InstallAction.Update:
-                    Console.WriteLine($"VRPC {plan.CurrentVersion} is installed at {plan.Root}.");
-                    Console.WriteLine($"Update to {plan.TargetVersion}? Your settings and listening history will be kept. [Y/n]: ");
-                    return IsNoOrEmptyAsYes(Console.ReadLine());
-                case InstallAction.Repair:
-                    Console.WriteLine($"VRPC {plan.CurrentVersion} is installed at {plan.Root}.");
-                    Console.WriteLine($"Reinstall/repair version {plan.TargetVersion}? [Y/n]: ");
-                    return IsNoOrEmptyAsYes(Console.ReadLine());
-                case InstallAction.Uninstall:
-                    Console.WriteLine($"This will uninstall VRPC from {plan.Root}.");
-                    Console.WriteLine("Your settings and listening history will be kept unless --purge is used.");
-                    Console.Write("Proceed with uninstallation? [N/y]: ");
-                    return IsYes(Console.ReadLine());
-                default:
-                    return false;
-            }
-        }
-
-        public bool ConfirmForceClose(string message)
-        {
-            if (_quiet || _yes) { return true; }
+            Console.WriteLine(prompt.Title);
+            if (!string.IsNullOrEmpty(prompt.Subtitle)) { Console.WriteLine(prompt.Subtitle); }
             Console.WriteLine();
-            Console.WriteLine(message);
-            Console.Write("Force-close it and continue? [N/y]: ");
-            return IsYes(Console.ReadLine());
+            Console.WriteLine(prompt.Text);
+            Console.WriteLine();
+
+            bool offersUninstall = string.Equals(prompt.SecondaryLabel, "Uninstall", StringComparison.OrdinalIgnoreCase);
+            string choices = prompt.AffirmativeByDefault ? "[Y/n" : "[N/y";
+            if (offersUninstall) { choices += "/u"; }
+            choices += "]";
+            Console.Write($"{prompt.PrimaryLabel}? {choices}: ");
+
+            string value = (Console.ReadLine() ?? "").Trim().ToLowerInvariant();
+            if (offersUninstall && value is "u" or "uninstall" or "remove") { return Task.FromResult(InstallDecision.Uninstall); }
+            if (value.Length == 0) { return Task.FromResult(prompt.AffirmativeByDefault ? InstallDecision.Proceed : InstallDecision.Cancel); }
+            if (value is "y" or "yes" or "install" or "update" or "repair") { return Task.FromResult(InstallDecision.Proceed); }
+            if (value is "n" or "no" or "cancel" or "close") { return Task.FromResult(InstallDecision.Cancel); }
+            return Task.FromResult(prompt.AffirmativeByDefault ? InstallDecision.Proceed : InstallDecision.Cancel);
         }
 
-        public void Report(string step)
+        public Task<bool> ConfirmForceCloseAsync(ConfirmPrompt prompt, CancellationToken cancellationToken = default)
+        {
+            if (_quiet || _yes) { return Task.FromResult(true); }
+
+            Console.WriteLine();
+            Console.WriteLine(prompt.Title);
+            Console.WriteLine(prompt.Text);
+            Console.WriteLine();
+            Console.Write($"{prompt.PrimaryLabel}? [N/y]: ");
+            string value = (Console.ReadLine() ?? "").Trim().ToLowerInvariant();
+            return Task.FromResult(value is "y" or "yes" or "close" or "kill" or "force");
+        }
+
+        public void Report(string step, string? title = null)
         {
             if (!_quiet) { Console.WriteLine(step); }
         }
 
-        public void Complete(InstallResult result)
+        public Task CompleteAsync(InstallResult result)
+        {
+            Print(result);
+            ReadKey();
+            return Task.CompletedTask;
+        }
+
+        public Task FailAsync(InstallResult result)
+        {
+            Print(result);
+            ReadKey();
+            return Task.CompletedTask;
+        }
+
+        public Task CanceledAsync(InstallResult result)
         {
             Console.WriteLine();
             Console.WriteLine(result.Message);
-            if (!string.IsNullOrEmpty(result.Version)) { Console.WriteLine($"Version: {result.Version}"); }
-            if (!string.IsNullOrEmpty(result.LogPath)) { Console.WriteLine($"Log: {result.LogPath}"); }
-            if (!_quiet) { Console.WriteLine("Press any key to exit."); ReadKey(); }
+            ReadKey();
+            return Task.CompletedTask;
         }
 
-        public void Fail(InstallResult result)
+        private void Print(InstallResult result)
         {
             Console.WriteLine();
-            Console.WriteLine("ERROR: " + result.Message);
+            if (!result.Success) { Console.WriteLine("ERROR: " + result.Message); }
+            else { Console.WriteLine(result.Message); }
+
+            if (!string.IsNullOrEmpty(result.Version)) { Console.WriteLine($"Version: {result.Version}"); }
             if (!string.IsNullOrEmpty(result.LogPath)) { Console.WriteLine($"Log: {result.LogPath}"); }
-            if (!_quiet) { Console.WriteLine("Press any key to exit."); ReadKey(); }
         }
 
-        private static string ConsentText(InstallPlan plan)
+        private void ReadKey()
         {
-            return "VRPC is an application that allows communication between the extension and client to provide Rich Presence data to Discord alongside other features.\n\n" +
-                   "By clicking Install below, you agree to the License, Terms of Use and Privacy Policy of this application listed over at https://viktir.com/vrpc\n\n" +
-                   "If you do not agree with any of the previous notices, refrain from installing this software by clicking the Cancel button or exiting the program.\n\n" +
-                   "By selecting install the following will occur:\n" +
-                   $"The files for this application will extract at {plan.Root}\n" +
-                   "A few registry keys will be created to allow for Native Messaging permissions to work with the extension and to create an entry for uninstalling the application in the Settings app.";
-        }
-
-        private static bool IsYes(string? input)
-        {
-            if (string.IsNullOrWhiteSpace(input)) { return false; }
-            string value = input.Trim().ToLowerInvariant();
-            return value is "y" or "yes" or "install" or "uninstall";
-        }
-
-        private static bool IsNoOrEmptyAsYes(string? input)
-        {
-            if (string.IsNullOrWhiteSpace(input)) { return true; }
-            string value = input.Trim().ToLowerInvariant();
-            return value is not ("n" or "no" or "cancel");
-        }
-
-        private static void ReadKey()
-        {
+            if (_quiet) { return; }
+            Console.WriteLine("Press any key to exit.");
             try
             {
                 if (!Console.IsInputRedirected) { Console.ReadKey(true); }

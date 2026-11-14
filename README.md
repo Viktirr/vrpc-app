@@ -9,9 +9,11 @@ Please note that this project is NOT open source, I allow viewing the code, howe
 ### Windows
 - [Download](https://github.com/Viktirr/vrpc-app/releases) the Windows package from the releases tab or build it yourself.
 - Unzip it.
-- Run `VRPC.exe` and follow the console prompts. No administration privileges are required.
+- Run `VRPC.exe` and follow the setup panel. No administration privileges are required.
 
 The installer puts the application in `%LOCALAPPDATA%\Viktir\VRPCApp`.
+
+The panel is a separate process over a GPU-composited window. On a machine where it cannot run, or when setup is not attached to a console a person can use, it falls back to the console prompts (`--console` forces them). The consent screen offers Install, Update, Repair, Uninstall and Close depending on what is already installed.
 
 ### Updating
 Download the new package, extract it, and run `VRPC.exe` again. The installer detects the existing version and updates in place. Future versions will have automatic unattended updates.

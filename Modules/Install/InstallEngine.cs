@@ -25,14 +25,14 @@ namespace VRPC.Install
         }
 
         // Install/update/repair entry point; uninstall has its own path.
-        public InstallResult Run()
+        public async Task<InstallResult> RunAsync()
         {
             try
             {
                 _log.Write($"Action={_request.RequestedAction?.ToString() ?? "auto"} Source={_request.SourceDirectory} Root={AppPaths.Root}");
                 RecoverInterruptedTransaction();
 
-                if (_request.RequestedAction == InstallAction.Uninstall) { return RunUninstall(); }
+                if (_request.RequestedAction == InstallAction.Uninstall) { return await RunUninstallAsync(askFirst: true); }
 
                 _payload = PayloadManifest.Load(_request.SourceDirectory);
                 _log.Write($"Payload version={_payload.Version} files={_payload.Files.Count} channel={_payload.Channel}");
@@ -40,7 +40,7 @@ namespace VRPC.Install
                 IReadOnlyList<string> verifyErrors = _payload.Verify();
                 if (verifyErrors.Count > 0)
                 {
-                    return Failure(SetupExitCodes.InvalidPayload, "The payload is incomplete or corrupted:\n  " + string.Join("\n  ", verifyErrors.Take(10)));
+                    return await FailureAsync(SetupExitCodes.InvalidPayload, "The payload is incomplete or corrupted:\n  " + string.Join("\n  ", verifyErrors.Take(10)));
                 }
 
                 _state = InstallStateStore.Load();
@@ -51,31 +51,44 @@ namespace VRPC.Install
                 InstallAction action = DetermineAction(existing);
                 InstallPlan plan = BuildPlan(action, existing);
 
-                if (!_presenter.Confirm(plan))
+                InstallDecision decision = await _presenter.ConfirmAsync(ConsentCopy.ForPlan(plan));
+                if (decision == InstallDecision.Cancel) { return await CanceledAsync(action); }
+
+                // The panel offers Uninstall next to Update and Repair. The user
+                // has already agreed to it, so the uninstall path must not ask a
+                // second time.
+                if (decision == InstallDecision.Uninstall)
                 {
-                    return Failure(SetupExitCodes.Canceled, "Installation canceled.");
+                    if (!existing) { return await FailureAsync(SetupExitCodes.Usage, "VRPC is not installed."); }
+                    _log.Write("The user chose to uninstall from the setup prompt.");
+                    return await RunUninstallAsync(askFirst: false);
                 }
+
+                if (plan.ForceCloseRequired) { _log.Write("VRPC is running; the force-close prompt follows."); }
 
                 AppPaths.EnsureDirectories();
 
                 if (_legacy is not null)
                 {
-                    if (!StopHost(_legacy.AppExe, version: _legacy.Version, allowPipe: false)) { return Failure(SetupExitCodes.Running, "VRPC is still running."); }
+                    _presenter.Report("Preparing the previous installation");
+                    if (!await StopHostAsync(_legacy.AppExe, _legacy.Version, InstallAction.Install, allowPipe: false)) { return await FailureAsync(SetupExitCodes.Running, "VRPC is still running."); }
                     MigrateLegacyData(_legacy);
                 }
 
                 if (File.Exists(AppPaths.AppExe))
                 {
-                    if (!StopHost(AppPaths.AppExe, version: _currentVersion, allowPipe: true)) { return Failure(SetupExitCodes.Running, "VRPC is still running."); }
+                    _presenter.Report("Stopping the running application");
+                    if (!await StopHostAsync(AppPaths.AppExe, _currentVersion, action, allowPipe: true)) { return await FailureAsync(SetupExitCodes.Running, "VRPC is still running."); }
                 }
 
+                _presenter.Report($"Verifying and staging {_payload.Files.Count} files");
                 string staging = StagePayload();
                 string backup = Path.Combine(AppPaths.Root, "app.old");
 
-                if (!StopHost(File.Exists(AppPaths.AppExe) ? AppPaths.AppExe : _legacy?.AppExe ?? AppPaths.AppExe, version: _currentVersion, allowPipe: true))
+                if (!await StopHostAsync(File.Exists(AppPaths.AppExe) ? AppPaths.AppExe : _legacy?.AppExe ?? AppPaths.AppExe, _currentVersion, action, allowPipe: true))
                 {
                     TryDeleteDirectory(staging);
-                    return Failure(SetupExitCodes.Running, "VRPC started again and is still running. Close the browser and retry.");
+                    return await FailureAsync(SetupExitCodes.Running, "VRPC started again and is still running. Close the browser and retry.");
                 }
 
                 if (!SkipRegistration) { RegistrationManager.Remove(_state); }
@@ -92,6 +105,7 @@ namespace VRPC.Install
                 };
                 InstallStateStore.SaveTransaction(transaction);
 
+                _presenter.Report("Replacing the application files");
                 try
                 {
                     Commit(staging, backup, hadApp);
@@ -102,26 +116,29 @@ namespace VRPC.Install
                     TryDeleteDirectory(staging);
                     RestoreRegistration();
                     InstallStateStore.DeleteTransaction();
-                    return Failure(SetupExitCodes.Failed, "The application files could not be replaced. Close the browser and retry. " + e.Message);
+                    return await FailureAsync(SetupExitCodes.Failed, "The application files could not be replaced. Close the browser and retry. " + e.Message);
                 }
 
+                _presenter.Report("Running the self-test");
                 if (!SmokeTest(AppPaths.AppExe))
                 {
                     RollbackCommit(backup, hadApp);
                     RestoreRegistration();
                     InstallStateStore.DeleteTransaction();
-                    return Failure(SetupExitCodes.Failed, "The new version failed its self-test. The previous installation was restored.");
+                    return await FailureAsync(SetupExitCodes.Failed, "The new version failed its self-test. The previous installation was restored.");
                 }
 
+                _presenter.Report("Registering native messaging");
                 TransactionResult applied = ApplyRegistrationAndState();
                 if (!applied.Success)
                 {
                     RollbackCommit(backup, hadApp);
                     RestoreRegistration();
                     InstallStateStore.DeleteTransaction();
-                    return Failure(SetupExitCodes.Failed, applied.Error);
+                    return await FailureAsync(SetupExitCodes.Failed, applied.Error);
                 }
 
+                _presenter.Report("Cleaning up");
                 TryDeleteDirectory(backup);
                 InstallStateStore.DeleteTransaction();
                 CleanupLegacy();
@@ -131,6 +148,7 @@ namespace VRPC.Install
                 {
                     Success = true,
                     ExitCode = SetupExitCodes.Success,
+                    Title = ConsentCopy.ResultTitle(action),
                     Message = action switch
                     {
                         InstallAction.Install => "VRPC is installed. Your settings and listening history were kept.",
@@ -140,21 +158,21 @@ namespace VRPC.Install
                     Version = _payload.Version,
                     LogPath = _log.Path
                 };
-                _presenter.Complete(result);
+                await _presenter.CompleteAsync(result);
                 return result;
             }
             catch (PayloadException e)
             {
-                return Failure(SetupExitCodes.InvalidPayload, e.Message);
+                return await FailureAsync(SetupExitCodes.InvalidPayload, e.Message);
             }
             catch (InstallException e)
             {
-                return Failure(e.ExitCode, e.Message);
+                return await FailureAsync(e.ExitCode, e.Message);
             }
             catch (Exception e)
             {
                 _log.Error(e.ToString());
-                return Failure(SetupExitCodes.Failed, $"Installation failed: {e.Message}");
+                return await FailureAsync(SetupExitCodes.Failed, $"Installation failed: {e.Message}");
             }
         }
 
@@ -447,10 +465,10 @@ namespace VRPC.Install
             }
         }
 
-        // Tries the control pipe first, then force-close.
-        private bool StopHost(string exePath, string version, bool allowPipe)
+        // Tries the control pipe first, then asks before force-closing. The
+        // question is the panel's second screen when the panel is available.
+        private async Task<bool> StopHostAsync(string exePath, string version, InstallAction action, bool allowPipe)
         {
-            string message = $"VRPC {version} is still running from {exePath}.";
             if (!ProcessHelper.IsRunning(exePath)) { return true; }
 
             if (allowPipe && OperatingSystem.IsWindows())
@@ -462,8 +480,9 @@ namespace VRPC.Install
                 }
             }
 
-            if (!_request.Force && !_presenter.ConfirmForceClose(message))
+            if (!_request.Force && !await _presenter.ConfirmForceCloseAsync(ConsentCopy.ForceClose(action, version, exePath)))
             {
+                _log.Write("The user chose not to close the running application.");
                 return false;
             }
 
@@ -492,13 +511,14 @@ namespace VRPC.Install
         }
 
         // Removes registration, app files, then ARP; data stays unless --purge.
-        private InstallResult RunUninstall()
+        // `askFirst` is false when the consent prompt already offered Uninstall.
+        private async Task<InstallResult> RunUninstallAsync(bool askFirst)
         {
             _state = InstallStateStore.Load();
             _legacy = LegacyInstallation.Detect();
             _currentVersion = GetCurrentVersion();
             bool existing = _state is not null || _legacy is not null || File.Exists(AppPaths.AppExe);
-            if (!existing) { return Failure(SetupExitCodes.Usage, "VRPC is not installed."); }
+            if (!existing) { return await FailureAsync(SetupExitCodes.Usage, "VRPC is not installed."); }
 
             InstallPlan plan = new()
             {
@@ -510,20 +530,35 @@ namespace VRPC.Install
                 DataDir = AppPaths.Data,
                 LegacyInstall = _legacy is not null,
                 FileCount = 0,
-                ForceCloseRequired = ProcessHelper.IsRunning(AppPaths.AppExe)
+                ForceCloseRequired = ProcessHelper.IsRunning(AppPaths.AppExe),
+                PurgeData = _request.PurgeData
             };
 
-            if (!_presenter.Confirm(plan)) { return Failure(SetupExitCodes.Canceled, "Uninstallation canceled."); }
-
-            if (!StopHost(AppPaths.AppExe, _currentVersion, allowPipe: true))
+            if (askFirst)
             {
-                return Failure(SetupExitCodes.Running, "VRPC is still running. Close it and retry.");
+                InstallDecision decision = await _presenter.ConfirmAsync(ConsentCopy.ForPlan(plan));
+                if (decision != InstallDecision.Proceed)
+                {
+                    _log.Write("The user did not confirm the uninstallation.");
+                    return await CanceledAsync(InstallAction.Uninstall);
+                }
+            }
+            else
+            {
+                _presenter.Report("Stopping the running application", "Uninstalling VRPC");
             }
 
-            if (_legacy is not null && !StopHost(_legacy.AppExe, _legacy.Version, allowPipe: false))
+            if (!await StopHostAsync(AppPaths.AppExe, _currentVersion, InstallAction.Uninstall, allowPipe: true))
             {
-                return Failure(SetupExitCodes.Running, "The legacy VRPC is still running.");
+                return await FailureAsync(SetupExitCodes.Running, "VRPC is still running. Close it and retry.");
             }
+
+            if (_legacy is not null && !await StopHostAsync(_legacy.AppExe, _legacy.Version, InstallAction.Uninstall, allowPipe: false))
+            {
+                return await FailureAsync(SetupExitCodes.Running, "The legacy VRPC is still running.");
+            }
+
+            _presenter.Report("Removing the application files");
 
             if (!SkipRegistration)
             {
@@ -540,11 +575,12 @@ namespace VRPC.Install
             catch (Exception e)
             {
                 _log.Error("Could not delete the application files: " + e.Message);
-                return Failure(SetupExitCodes.Failed, "The application files could not be deleted. Close the browser and retry. " + e.Message);
+                return await FailureAsync(SetupExitCodes.Failed, "The application files could not be deleted. Close the browser and retry. " + e.Message);
             }
 
             if (_request.PurgeData)
             {
+                _presenter.Report("Removing your settings and listening history");
                 try { if (Directory.Exists(AppPaths.Data)) { Directory.Delete(AppPaths.Data, recursive: true); } } catch { }
                 if (_legacy is not null)
                 {
@@ -559,6 +595,8 @@ namespace VRPC.Install
             }
             catch { }
 
+            _presenter.Report("Removing the registry keys");
+
             if (!SkipRegistration)
             {
                 ArpRegistration.Remove();
@@ -570,13 +608,14 @@ namespace VRPC.Install
             {
                 Success = true,
                 ExitCode = SetupExitCodes.Success,
+                Title = ConsentCopy.ResultTitle(InstallAction.Uninstall),
                 Message = _request.PurgeData
                     ? "VRPC was uninstalled and its data was removed."
                     : "VRPC was uninstalled. Your settings and listening history were kept.",
                 Version = _currentVersion,
                 LogPath = _log.Path
             };
-            _presenter.Complete(result);
+            await _presenter.CompleteAsync(result);
             return result;
         }
 
@@ -609,18 +648,36 @@ namespace VRPC.Install
         }
 
         // Logs and presents a failure result.
-        private InstallResult Failure(int exitCode, string message)
+        private async Task<InstallResult> FailureAsync(int exitCode, string message)
         {
             _log.Error(message);
             InstallResult result = new()
             {
                 Success = false,
                 ExitCode = exitCode,
+                Title = "VRPC setup failed",
                 Message = message,
                 Version = _payload?.Version ?? "",
                 LogPath = _log.Path
             };
-            _presenter.Fail(result);
+            await _presenter.FailAsync(result);
+            return result;
+        }
+
+        // A cancel is not a failure: the panel has already closed itself, so the
+        // presenter decides whether anything is still worth printing.
+        private async Task<InstallResult> CanceledAsync(InstallAction action)
+        {
+            _log.Write($"{action} canceled by the user.");
+            InstallResult result = new()
+            {
+                Success = false,
+                ExitCode = SetupExitCodes.Canceled,
+                Title = ConsentCopy.ResultTitle(action) + " canceled",
+                Message = action == InstallAction.Uninstall ? "Nothing was uninstalled." : "Nothing was changed.",
+                LogPath = _log.Path
+            };
+            await _presenter.CanceledAsync(result);
             return result;
         }
 

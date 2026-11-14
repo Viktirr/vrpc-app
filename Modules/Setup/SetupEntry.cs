@@ -6,8 +6,15 @@ namespace VRPC.Setup
     // Console setup entry: command parsing, installed-app guard, engine handoff.
     public static class SetupEntry
     {
-        // Parses commands before touching the installation.
+        // The engine is async because the panel is an interactive process; this
+        // wrapper keeps the process entry point synchronous.
         public static int Run(string[] args)
+        {
+            return RunAsync(args).GetAwaiter().GetResult();
+        }
+
+        // Parses commands before touching the installation.
+        public static async Task<int> RunAsync(string[] args)
         {
             SetupOptions options;
             try
@@ -42,7 +49,6 @@ namespace VRPC.Setup
             if (!string.IsNullOrWhiteSpace(options.Root)) { AppPaths.OverrideRoot(options.Root); }
 
             if (options.SelfTest) { return SelfTest.Run(); }
-
             bool insideApp = AppPaths.IsUnderApp(AppContext.BaseDirectory);
             if (options.Uninstall && !options.UninstallTemp && insideApp)
             {
@@ -75,7 +81,8 @@ namespace VRPC.Setup
             }
 
             SetupLog log = new();
-            ConsolePresenter presenter = new(options.Quiet, options.Yes);
+            IPresenter presenter = await CreatePresenterAsync(options);
+            log.Write($"UI: {DescribePresenter(presenter)}");
             InstallRequest request = new()
             {
                 SourceDirectory = options.PayloadDirectory,
@@ -89,9 +96,45 @@ namespace VRPC.Setup
                 Registration = options.Registration
             };
 
-            InstallEngine engine = new(request, presenter, log);
-            InstallResult result = engine.Run();
-            return result.ExitCode;
+            try
+            {
+                InstallEngine engine = new(request, presenter, log);
+                InstallResult result = await engine.RunAsync();
+                return result.ExitCode;
+            }
+            finally
+            {
+                (presenter as IDisposable)?.Dispose();
+            }
+        }
+
+        // The one place the UI is chosen. The panel needs a human at a keyboard
+        // and a GPU that can composite it; everything else keeps the console.
+        private static async Task<IPresenter> CreatePresenterAsync(SetupOptions options)
+        {
+            ConsolePresenter console = new(options.Quiet, options.Yes);
+
+            if (options.UseConsole) { return console; }
+
+            bool forced = string.Equals(Environment.GetEnvironmentVariable("VRPC_UI_PANEL"), "1", StringComparison.Ordinal);
+            if (!forced)
+            {
+                if (options.Quiet || options.Yes) { return console; }
+                if (!OperatingSystem.IsWindows()) { return console; }
+                if (Console.IsInputRedirected || Console.IsOutputRedirected) { return console; }
+            }
+
+            OverlayPresenter? overlay = await OverlayPresenter.TryCreateAsync(fallback: console);
+            return overlay is null ? console : overlay;
+        }
+
+        private static string DescribePresenter(IPresenter presenter)
+        {
+            return presenter switch
+            {
+                OverlayPresenter overlay => "setup panel at " + OverlayPresenter.ResolveExePath(),
+                _ => OperatingSystem.IsWindows() ? "console" : "console (no panel on this platform)"
+            };
         }
 
         // Keep in sync with SetupOptions.Parse; --uninstall-temp stays hidden.
@@ -116,6 +159,7 @@ namespace VRPC.Setup
             Console.WriteLine("  --purge                      Delete settings/listening data on uninstall");
             Console.WriteLine("  --quiet                      No progress output; auto-confirm");
             Console.WriteLine("  --yes                        Auto-confirm prompts");
+            Console.WriteLine("  --console                    Use the console installer instead of the setup panel");
             Console.WriteLine("  --help                       Show this help");
         }
     }
@@ -134,6 +178,7 @@ namespace VRPC.Setup
         public bool Force { get; private set; }
         public bool Quiet { get; private set; }
         public bool Yes { get; private set; }
+        public bool UseConsole { get; private set; }
         public bool AllowDowngrade { get; private set; }
         public bool PurgeData { get; private set; }
         public RegistrationOptions Registration { get; private set; } = RegistrationOptions.Default;
@@ -164,6 +209,7 @@ namespace VRPC.Setup
                     case "--force": options.Force = true; break;
                     case "--quiet": options.Quiet = true; options.Yes = true; break;
                     case "--yes": options.Yes = true; break;
+                    case "--console": options.UseConsole = true; break;
                     case "--allow-downgrade": options.AllowDowngrade = true; break;
                     case "--purge": options.PurgeData = true; break;
                     case "--payload":
