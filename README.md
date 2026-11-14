@@ -43,21 +43,46 @@ The value should point at a manifest in `%LOCALAPPDATA%\Viktir\VRPCApp\manifests
 
 ## Building
 Prerequisites:
-- C# .NET 9 (or higher)
+- .NET 9 SDK or newer
+- Rust with Cargo (the setup panel is a separate Rust process, and the release script builds it)
+- Windows for the packaged panel; the Linux publish ships without it
 
-Build the development version:
+Build the development version (application only, no panel):
 
 ```
 dotnet build
 ```
 
-Build a release package with the payload manifest and zip:
+Build the release package — application, setup panel, payload manifest and zip:
 
 ```
 .\packaging\build-release.ps1 -Version 1.10.0
 ```
 
-The package is written to `artifacts\VRPC-1.10.0-win-x64.zip`. The version comes from `Directory.Build.props` unless `-Version` is supplied like in the example.
+If your execution policy blocks unsigned scripts, run it through a bypass:
+
+```
+powershell -NoProfile -ExecutionPolicy Bypass -File .\packaging\build-release.ps1 -Version 1.10.0
+```
+
+The script publishes self-contained `win-x64`, runs `cargo build --release --locked` in `installer-ui/`, copies `vrpc-installer-ui.exe` into the package before `payload.json` is hashed, and zips the result:
+
+- `artifacts\VRPC-<version>-win-x64\` — the package; extract it and run `VRPC.exe`
+- `artifacts\VRPC-<version>-win-x64.zip`
+
+The version comes from `Directory.Build.props` unless `-Version` is supplied like in the example. The first panel build fetches the pinned framework revision, so it needs network access; if the panel cannot be built, the release fails instead of shipping a console-only installer. The panel can also be built on its own with `cargo build --release --locked` in `installer-ui/` (see its README).
+
+Development install (Debug package, updates the installed application in place):
+
+```
+python qd.py
+```
+
+Linux publish:
+
+```
+dotnet publish -c Release -r linux-x64 --self-contained true /p:PublishSingleFile=false
+```
 
 ## Troubleshooting / IT DOESN'T WORK!!
 ### Native Messaging Permissions
