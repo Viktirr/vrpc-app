@@ -56,13 +56,13 @@ dotnet build
 Build the release package — application, setup panel, payload manifest and zip:
 
 ```
-.\packaging\build-release.ps1 -Version 1.10.0
+.\packaging\build-release.ps1 -Version 1.1.0
 ```
 
 If your execution policy blocks unsigned scripts, run it through a bypass:
 
 ```
-powershell -NoProfile -ExecutionPolicy Bypass -File .\packaging\build-release.ps1 -Version 1.10.0
+powershell -NoProfile -ExecutionPolicy Bypass -File .\packaging\build-release.ps1 -Version 1.1.0
 ```
 
 The script publishes self-contained `win-x64`, runs `cargo build --release --locked` in `installer-ui/`, copies `vrpc-installer-ui.exe` into the package before `payload.json` is hashed, and zips the result:

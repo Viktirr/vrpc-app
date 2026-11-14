@@ -9,7 +9,7 @@ namespace VRPC.Application
 
         public static string DisplayVersion => Version;
 
-        // Parses 1.10, 1.10.0 or 1.10.0.0; invalid input becomes 0.0.0.
+        // Parses 1.1, 1.1.0 or 1.1.0.0; invalid input becomes 0.0.0.
         public static bool TryParseVersion(string? value, out Version version)
         {
             version = new Version(0, 0, 0);
