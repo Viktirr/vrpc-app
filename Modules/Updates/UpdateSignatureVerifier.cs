@@ -33,6 +33,10 @@ namespace VRPC.Updates
                 }
 
                 UpdateSignature signature = manifest.Signature;
+                if (signature is null)
+                {
+                    return Fail(error, UpdateErrorCategory.InvalidSignature, "Manifest signature is missing.");
+                }
                 if (!string.Equals(signature.Algorithm, UpdateContract.Algorithm, StringComparison.Ordinal))
                 {
                     return Fail(error, UpdateErrorCategory.InvalidSignature, "Unsupported signature algorithm.");

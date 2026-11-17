@@ -97,6 +97,21 @@ namespace VRPC.Tests.Trust
         }
 
         [Fact]
+        public void Null_signature_fails_closed_as_a_signature_error()
+        {
+            UpdateManifest vector = LoadVectorManifest();
+            string payloadJson = JsonSerializer.Serialize(vector.Payload, UpdateJson.Compact);
+            string envelope = "{\"schema\":" + UpdateContract.Schema + ",\"payload\":" + payloadJson + ",\"signature\":null}";
+
+            UpdateManifest? manifest = UpdateManifestJson.Deserialize(envelope);
+            Assert.NotNull(manifest);
+            Assert.Null(manifest!.Signature);
+
+            Assert.False(TestVerifier.TryVerify(manifest, out UpdateVerificationError error));
+            Assert.Equal(UpdateErrorCategory.InvalidSignature, error.Category);
+        }
+
+        [Fact]
         public void Trusted_keys_are_importable_and_contain_no_test_keys()
         {
             Assert.True(TrustedUpdateKeys.Keys.ContainsKey("vrpc-updates-2026-11"));

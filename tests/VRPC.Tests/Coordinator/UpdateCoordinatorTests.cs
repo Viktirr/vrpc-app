@@ -1,3 +1,4 @@
+using System.Security.Cryptography;
 using System.Text.Json;
 using VRPC.Application;
 using VRPC.Updates;
@@ -168,6 +169,29 @@ namespace VRPC.Tests.Coordinator
         }
 
         [Fact]
+        public async Task Install_fails_when_the_ready_archive_no_longer_matches_the_signed_hash()
+        {
+            FakeSource source = new() { Result = Available("1.2.0") };
+            FakeLauncher launcher = new();
+            UpdateStateStore store = new(_statePath);
+            using UpdateCoordinator coordinator = CreateCoordinator(source, launcher, store);
+
+            coordinator.Start(CancellationToken.None);
+            await WaitUntilAsync(() => coordinator.GetStatus().Phase == UpdatePhase.Ready);
+
+            byte[] tampered = new byte[1024];
+            tampered[0] = 1;
+            string archivePath = Path.Combine(Directory.GetParent(store.Load().ReadyPackageDir)!.FullName, "package.zip");
+            File.WriteAllBytes(archivePath, tampered);
+
+            Assert.False(coordinator.TryRequestInstall(out string reply));
+            Assert.Equal("failed", reply);
+            Assert.Equal(0, launcher.Launches);
+            Assert.Equal(UpdateErrorCategory.HashMismatch, store.Load().LastErrorCategory);
+            Assert.Equal(UpdatePhase.Failed, coordinator.GetStatus().Phase);
+        }
+
+        [Fact]
         public async Task Cancellation_during_download_leaves_no_ready_state()
         {
             FakeSource source = new() { Result = Available("1.2.0"), BlockDownload = true };
@@ -235,6 +259,7 @@ namespace VRPC.Tests.Coordinator
                 }
             };
             File.WriteAllText(Path.Combine(readyDirectory, "manifest.json"), UpdateManifestJson.SerializeEnvelope(saved));
+            File.WriteAllBytes(Path.Combine(readyDirectory, "package.zip"), new byte[saved.Payload.Asset.Size]);
 
             UpdateStateStore store = new(_statePath);
             store.Save(new UpdaterState { ReadyVersion = "1.2.0", ReadyPackageDir = packageDirectory });
@@ -313,7 +338,7 @@ namespace VRPC.Tests.Coordinator
                             Name = UpdateContract.AssetName(version),
                             Url = $"https://github.com/Viktirr/vrpc-app/releases/download/{UpdateContract.ReleaseTag(version)}/{UpdateContract.AssetName(version)}",
                             Size = 1024,
-                            Sha256 = new string('a', 64)
+                            Sha256 = Convert.ToHexString(SHA256.HashData(new byte[1024])).ToLowerInvariant()
                         },
                         NotesUrl = notesUrl,
                         PublishedAtUtc = "2026-11-15T00:00:00Z"

@@ -1,3 +1,4 @@
+using System.Security.Cryptography;
 using System.Text.Json;
 using VRPC.Application;
 
@@ -571,11 +572,45 @@ namespace VRPC.Updates
                     return false;
                 }
 
+                // The extracted files re-verify against payload.json and the saved
+                // envelope re-authenticates; the archive is the anchor between
+                // them, so its bytes must still match the signed hash.
+                string archivePath = System.IO.Path.Combine(operationDirectory, "package.zip");
+                if (!File.Exists(archivePath))
+                {
+                    errorCategory = UpdateErrorCategory.Internal;
+                    errorMessage = "The downloaded update archive is missing.";
+                    return false;
+                }
+                if (!ArchiveMatchesSignedAsset(archivePath, manifest.Payload.Asset))
+                {
+                    errorCategory = UpdateErrorCategory.HashMismatch;
+                    errorMessage = "The downloaded update archive no longer matches the signed hash.";
+                    return false;
+                }
+
                 return _source.VerifyPackageDirectory(packageDirectory, version, out errorCategory, out errorMessage);
             }
             catch (Exception exception)
             {
                 errorMessage = "The update could not be re-verified: " + exception.Message;
+                return false;
+            }
+        }
+
+        private static bool ArchiveMatchesSignedAsset(string archivePath, UpdateAsset asset)
+        {
+            try
+            {
+                using FileStream stream = File.OpenRead(archivePath);
+                if (stream.Length != asset.Size)
+                {
+                    return false;
+                }
+                return string.Equals(Convert.ToHexString(SHA256.HashData(stream)).ToLowerInvariant(), asset.Sha256, StringComparison.Ordinal);
+            }
+            catch (Exception exception) when (exception is IOException or UnauthorizedAccessException)
+            {
                 return false;
             }
         }
