@@ -3,6 +3,8 @@
 /obj/
 /dist/
 /artifacts/
+/tests/**/bin/
+/tests/**/obj/
 
 # VS Code
 *.code-workspace
@@ -10,6 +12,13 @@
 
 # Python
 __pycache__/
+
+# Update signing material must never be committed
+*.private.pem
+*.keygen.json
+*.public.spki.b64
+!tests/VRPC.Tests/Fixtures/Updater/vrpc-test-key.private.pem
+!tests/VRPC.Tests/Fixtures/Updater/vrpc-test-key.public.spki.b64
 
 # installer-ui (Rust)
 /installer-ui/target/

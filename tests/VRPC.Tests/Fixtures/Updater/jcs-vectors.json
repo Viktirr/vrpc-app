@@ -1,0 +1,94 @@
+{
+  "valid": [
+    {
+      "name": "key order",
+      "value": {
+        "b": 1,
+        "a": "x",
+        "C": true
+      },
+      "canonical": "{\"C\":true,\"a\":\"x\",\"b\":1}"
+    },
+    {
+      "name": "nested",
+      "value": {
+        "z": [
+          1,
+          {
+            "y": null,
+            "x": false
+          }
+        ],
+        "a": {}
+      },
+      "canonical": "{\"a\":{},\"z\":[1,{\"x\":false,\"y\":null}]}"
+    },
+    {
+      "name": "escapes",
+      "value": {
+        "s": "quote\" back\\ line\n tab\t bs\b ff\f cr\r ctrl\u0001 unit\u001f del"
+      },
+      "canonical": "{\"s\":\"quote\\\" back\\\\ line\\n tab\\t bs\\b ff\\f cr\\r ctrl\\u0001 unit\\u001f del\"}"
+    },
+    {
+      "name": "unicode",
+      "value": {
+        "é": "é",
+        "z": "😀",
+        "€": "€"
+      },
+      "canonical": "{\"z\":\"😀\",\"é\":\"é\",\"€\":\"€\"}"
+    },
+    {
+      "name": "integers",
+      "value": {
+        "min": -9007199254740991,
+        "zero": 0,
+        "max": 9007199254740991
+      },
+      "canonical": "{\"max\":9007199254740991,\"min\":-9007199254740991,\"zero\":0}"
+    },
+    {
+      "name": "empty",
+      "value": {
+        "o": {},
+        "a": []
+      },
+      "canonical": "{\"a\":[],\"o\":{}}"
+    },
+    {
+      "name": "key sort",
+      "value": {
+        "b": 1,
+        "A": 2,
+        "a": 3,
+        "é": 4,
+        "z": 5
+      },
+      "canonical": "{\"A\":2,\"a\":3,\"b\":1,\"z\":5,\"é\":4}"
+    }
+  ],
+  "invalid": [
+    {
+      "name": "duplicate keys",
+      "raw": "{\"a\":1,\"a\":2}"
+    },
+    {
+      "name": "float",
+      "raw": "{\"n\":1.5}"
+    },
+    {
+      "name": "exponent",
+      "raw": "{\"n\":1e3}"
+    },
+    {
+      "name": "unsafe integer",
+      "raw": "{\"n\":9007199254740992}"
+    },
+    {
+      "name": "negative zero is normalized",
+      "raw": "{\"n\":-0}",
+      "canonical": "{\"n\":0}"
+    }
+  ]
+}

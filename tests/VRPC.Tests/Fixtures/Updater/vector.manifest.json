@@ -1,0 +1,23 @@
+{
+  "schema": 1,
+  "payload": {
+    "product": "VRPC",
+    "version": "1.2.0",
+    "channel": "stable",
+    "runtime": "win-x64",
+    "releaseTag": "v1.2.0",
+    "asset": {
+      "name": "VRPC-1.2.0-win-x64.zip",
+      "url": "https://github.com/Viktirr/vrpc-app/releases/download/v1.2.0/VRPC-1.2.0-win-x64.zip",
+      "size": 36829330,
+      "sha256": "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef"
+    },
+    "notesUrl": "https://github.com/Viktirr/vrpc-app/releases/tag/v1.2.0",
+    "publishedAtUtc": "2026-11-15T00:00:00Z"
+  },
+  "signature": {
+    "algorithm": "ECDSA-P256-SHA256",
+    "keyId": "vrpc-test-key",
+    "value": "q1IIg3u5WEH3kb/ElYrYvuP/Kv/48W20kICTbwSiJiT7gqNmJUMAvR/GDHkR/5LSv+pgPYW/ILToqgYTIs1N7w=="
+  }
+}
