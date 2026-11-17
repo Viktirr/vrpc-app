@@ -17,6 +17,7 @@ class Program
 
     public static SingleInstance? Instance { get; set; }
     public static ControlServer? ControlServer { get; set; }
+    public static VRPC.Updates.UpdateCoordinator? Updater { get; set; }
 
     public static bool runningOnBrowser = false;
     public static bool isDiscordRPCRunning = false;
@@ -53,6 +54,21 @@ class Program
         if (messageDictionary[0].Contains("GET_APP_VERSION")) { NativeMessagingCommands.SendAppVersion(); return; }
         if (messageDictionary[0].Contains("GET_LISTENINGDATA")) { NativeMessagingCommands.SendListeningDataStats(); return; }
         if (messageDictionary[0].Contains("SET_CONFIG")) { NativeMessagingCommands.SetConfig(messageDictionary); return; }
+        if (messageDictionary[0].Contains("GET_UPDATE_STATUS")) { NativeMessagingCommands.SendUpdateStatus(Updater?.GetStatus()); return; }
+        if (messageDictionary[0].Contains("UPDATE_CHECK"))
+        {
+            if (Updater is null) { NativeMessagingCommands.SendUpdateReply("unsupported"); return; }
+            Updater.TryRequestManualCheck(out string updateCheckReply);
+            NativeMessagingCommands.SendUpdateReply(updateCheckReply);
+            return;
+        }
+        if (messageDictionary[0].Contains("UPDATE_INSTALL"))
+        {
+            if (Updater is null) { NativeMessagingCommands.SendUpdateReply("unsupported"); return; }
+            Updater.TryRequestInstall(out string updateInstallReply);
+            NativeMessagingCommands.SendUpdateReply(updateInstallReply);
+            return;
+        }
 
         if (messageDictionary[0].Contains("Program")) { NativeMessaging.ConnectivityStatus(messageDictionary); return; }
 
@@ -190,6 +206,8 @@ class Program
         if (Interlocked.Exchange(ref _shutdownStarted, 1) != 0) { return; }
 
         log.Write("[Main] Shutting down.");
+        try { Updater?.Dispose(); } catch { }
+        Updater = null;
         ControlServer?.Dispose();
         ControlServer = null;
         RemoveLock();

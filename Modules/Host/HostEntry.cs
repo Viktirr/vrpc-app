@@ -45,6 +45,10 @@ namespace VRPC.Host
                 listeningDataThread.Start();
                 log.Write("[Host] Starting Listening Data.");
 
+                // Explains itself through the log in every case; an updater
+                // failure must never keep Rich Presence or history from working.
+                VRPC.Updates.UpdateRuntime.TryStart(log);
+
                 return 0;
             }
             catch (Exception e)

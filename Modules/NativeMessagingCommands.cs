@@ -4,6 +4,8 @@ using VRPC.Logging;
 using VRPC.Configuration;
 using Newtonsoft.Json;
 using VRPC.Globals;
+using VRPC.Application;
+using VRPC.Updates;
 
 namespace VRPC.NativeMessasing
 {
@@ -152,6 +154,36 @@ namespace VRPC.NativeMessasing
             catch (Exception e)
             {
                 log.Write($"[NativeMessagingCommands] Failed to send file reason of application exit. Exception: {e.Message}");
+            }
+        }
+
+        public static void SendUpdateStatus(UpdateStatusSnapshot? status)
+        {
+            Log log = new Log();
+
+            try
+            {
+                status ??= new UpdateStatusSnapshot { Phase = UpdatePhase.Unsupported, CurrentVersion = ProductInfo.Version };
+                string json = System.Text.Json.JsonSerializer.Serialize(status, UpdateJson.Compact);
+                NativeMessaging.SendMessage(NativeMessaging.EncodeMessage($"UPDATESTATUS: {json}"));
+            }
+            catch (Exception e)
+            {
+                log.Warn($"[NativeMessagingCommands] Couldn't send the update status to the extension. Exception: {e.Message}");
+            }
+        }
+
+        public static void SendUpdateReply(string reply)
+        {
+            Log log = new Log();
+
+            try
+            {
+                NativeMessaging.SendMessage(NativeMessaging.EncodeMessage($"UPDATE: {reply}"));
+            }
+            catch (Exception e)
+            {
+                log.Warn($"[NativeMessagingCommands] Couldn't send the update reply to the extension. Exception: {e.Message}");
             }
         }
     }
