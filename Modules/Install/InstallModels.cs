@@ -114,5 +114,6 @@ namespace VRPC.Install
         public const int InvalidPayload = 4;
         public const int Failed = 5;
         public const int Usage = 6;
+        public const int AnotherOperationInProgress = 7;
     }
 }

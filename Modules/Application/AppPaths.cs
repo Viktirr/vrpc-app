@@ -1,4 +1,6 @@
 using System.Runtime.InteropServices;
+using System.Security.Cryptography;
+using System.Text;
 
 namespace VRPC.Application
 {
@@ -13,6 +15,8 @@ namespace VRPC.Application
         public const string InstallStateName = "install.json";
         public const string UpdateMarkerName = "update.json";
         public const string MigrationMarkerName = "migration.json";
+        public const string UpdaterStateName = "updater-state.json";
+        public const string SetupOperationLockName = "setup-operation.lock";
         public const string ControlPipeName = "vrpc-control";
 
         private static string _root = GetDefaultRoot();
@@ -29,6 +33,9 @@ namespace VRPC.Application
         public static string UpdateMarkerPath => Path.Combine(State, UpdateMarkerName);
         public static string MigrationMarkerPath => Path.Combine(State, MigrationMarkerName);
         public static string PidPath => Path.Combine(State, "host.pid");
+        public static string UpdaterStatePath => Path.Combine(State, UpdaterStateName);
+        public static string SetupOperationLockPath => Path.Combine(State, SetupOperationLockName);
+        public static string UpdatesDir => Path.Combine(State, "updates");
         public static string ControlPipe => ControlPipeName;
 
         // Legacy 1.0.x root; only used by migration and uninstall.
@@ -64,6 +71,14 @@ namespace VRPC.Application
             string? overrideRoot = Environment.GetEnvironmentVariable("VRPC_ROOT");
             if (!string.IsNullOrWhiteSpace(overrideRoot)) { return Path.GetFullPath(overrideRoot); }
 
+            return GetInstallDefaultRoot();
+        }
+
+        // The OS-layout default, deliberately ignoring VRPC_ROOT: a process
+        // started with a root override must not be mistaken for the normal
+        // per-user installation (control pipe names are derived from this).
+        public static string GetInstallDefaultRoot()
+        {
             string local = Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData);
             return Path.Combine(local, VendorName, AppFolderName);
         }
@@ -96,10 +111,29 @@ namespace VRPC.Application
                    candidate.StartsWith(app + Path.DirectorySeparatorChar, StringComparison.OrdinalIgnoreCase);
         }
 
+        // Guards updater staging/download cleanup against paths outside state/updates.
+        public static bool IsUnderUpdatesRoot(string path)
+        {
+            if (string.IsNullOrWhiteSpace(path)) { return false; }
+            string updates = Path.GetFullPath(UpdatesDir).TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar);
+            string candidate = Path.GetFullPath(path).TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar);
+            return candidate.Equals(updates, StringComparison.OrdinalIgnoreCase) ||
+                   candidate.StartsWith(updates + Path.DirectorySeparatorChar, StringComparison.OrdinalIgnoreCase);
+        }
+
         public static string ControlPipeNameForCurrentUser()
         {
             if (!RuntimeInformation.IsOSPlatform(OSPlatform.Windows)) { return ControlPipeName; }
-            return $"{ControlPipeName}-{Environment.UserName}";
+
+            string baseName = $"{ControlPipeName}-{Environment.UserName}";
+            string root = Path.GetFullPath(Root).TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar);
+            string installDefault = Path.GetFullPath(GetInstallDefaultRoot()).TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar);
+            if (root.Equals(installDefault, StringComparison.OrdinalIgnoreCase)) { return baseName; }
+
+            // A custom --root gets its own pipe so a throw-away installation can
+            // never stop (or be stopped by) the normal one.
+            string hash = Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(root.ToUpperInvariant()))).ToLowerInvariant()[..12];
+            return $"{baseName}-{hash}";
         }
     }
 }

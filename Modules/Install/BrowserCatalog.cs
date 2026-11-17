@@ -34,10 +34,38 @@ namespace VRPC.Install
 
     public sealed class RegistrationOptions
     {
-        public List<string> ChromiumExtensionIds { get; } = new() { BrowserCatalog.ChromeStoreId };
-        public List<string> FirefoxExtensionIds { get; } = new() { BrowserCatalog.FirefoxExtensionId };
+        public List<string> ChromiumExtensionIds { get; set; } = new() { BrowserCatalog.ChromeStoreId };
+        public List<string> FirefoxExtensionIds { get; set; } = new() { BrowserCatalog.FirefoxExtensionId };
+
+        // True when setup was passed --extension-id / --firefox-extension-id for
+        // this family. An explicit list replaces any recorded one instead of
+        // being compared with it.
+        public bool ChromiumExplicit { get; set; }
+        public bool FirefoxExplicit { get; set; }
 
         public static RegistrationOptions Default => new();
+
+        public static RegistrationOptions FromLists(IEnumerable<string> chromiumIds, IEnumerable<string> firefoxIds)
+        {
+            return new RegistrationOptions
+            {
+                ChromiumExtensionIds = chromiumIds.ToList(),
+                FirefoxExtensionIds = firefoxIds.ToList(),
+                ChromiumExplicit = true,
+                FirefoxExplicit = true
+            };
+        }
+
+        public RegistrationOptions Clone()
+        {
+            return new RegistrationOptions
+            {
+                ChromiumExtensionIds = ChromiumExtensionIds.ToList(),
+                FirefoxExtensionIds = FirefoxExtensionIds.ToList(),
+                ChromiumExplicit = ChromiumExplicit,
+                FirefoxExplicit = FirefoxExplicit
+            };
+        }
     }
 
     public sealed class RegistrationResult

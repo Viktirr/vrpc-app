@@ -10,7 +10,35 @@ namespace VRPC.Setup
         // wrapper keeps the process entry point synchronous.
         public static int Run(string[] args)
         {
+            RedirectConsoleIfRequested();
             return RunAsync(args).GetAwaiter().GetResult();
+        }
+
+        // An updater-started setup outlives the host that launched it, so its
+        // inherited stdout/stderr handles become broken pipes. Console output is
+        // redirected to a log file before any prompt or help text can touch them.
+        private static void RedirectConsoleIfRequested()
+        {
+            try
+            {
+                string? path = Environment.GetEnvironmentVariable("VRPC_SETUP_CONSOLE_LOG");
+                if (string.IsNullOrWhiteSpace(path)) { return; }
+
+                string? directory = Path.GetDirectoryName(path);
+                if (!string.IsNullOrEmpty(directory)) { Directory.CreateDirectory(directory); }
+
+                StreamWriter writer = new StreamWriter(
+                    new FileStream(path, FileMode.Append, FileAccess.Write, FileShare.Read),
+                    new System.Text.UTF8Encoding(false))
+                {
+                    AutoFlush = true
+                };
+                Console.SetOut(writer);
+                Console.SetError(writer);
+            }
+            catch
+            {
+            }
         }
 
         // Parses commands before touching the installation.
@@ -227,11 +255,21 @@ namespace VRPC.Setup
                         options.Root = Path.GetFullPath(Next(args, ref i, argument));
                         break;
                     case "--extension-id":
-                        if (!chromiumCleared) { options.Registration.ChromiumExtensionIds.Clear(); chromiumCleared = true; }
+                        if (!chromiumCleared)
+                        {
+                            options.Registration.ChromiumExtensionIds.Clear();
+                            options.Registration.ChromiumExplicit = true;
+                            chromiumCleared = true;
+                        }
                         options.Registration.ChromiumExtensionIds.Add(Next(args, ref i, argument));
                         break;
                     case "--firefox-extension-id":
-                        if (!firefoxCleared) { options.Registration.FirefoxExtensionIds.Clear(); firefoxCleared = true; }
+                        if (!firefoxCleared)
+                        {
+                            options.Registration.FirefoxExtensionIds.Clear();
+                            options.Registration.FirefoxExplicit = true;
+                            firefoxCleared = true;
+                        }
                         options.Registration.FirefoxExtensionIds.Add(Next(args, ref i, argument));
                         break;
                     default:

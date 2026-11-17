@@ -11,17 +11,26 @@ namespace VRPC.Install
         private readonly InstallRequest _request;
         private readonly IPresenter _presenter;
         private readonly SetupLog _log;
+        private readonly IInstallerRegistration _registration;
         private PayloadManifest? _payload;
         private InstallState? _state;
+        private InstallState? _previousState;
         private LegacyInstallation? _legacy;
         private string _currentVersion = "";
-        private bool SkipRegistration => string.Equals(Environment.GetEnvironmentVariable("VRPC_NO_REGISTRY"), "1", StringComparison.Ordinal);
+        private RegistrationOptions _effectiveRegistration = RegistrationOptions.Default;
+        private RegistrationOptions _previousRegistration = RegistrationOptions.Default;
+        private UpdateTransaction? _transaction;
+        private string? _staging;
+        private string? _backup;
+        private bool _hadApp;
+        private bool _registrationRemoved;
 
-        public InstallEngine(InstallRequest request, IPresenter presenter, SetupLog log)
+        public InstallEngine(InstallRequest request, IPresenter presenter, SetupLog log, IInstallerRegistration? registration = null)
         {
             _request = request;
             _presenter = presenter;
             _log = log;
+            _registration = registration ?? new InstallerRegistration();
         }
 
         // Install/update/repair entry point; uninstall has its own path.
@@ -30,7 +39,14 @@ namespace VRPC.Install
             try
             {
                 _log.Write($"Action={_request.RequestedAction?.ToString() ?? "auto"} Source={_request.SourceDirectory} Root={AppPaths.Root}");
-                RecoverInterruptedTransaction();
+
+                // The lock comes before recovery: two setup processes must never
+                // recover or mutate the same installation at the same time.
+                using SetupOperationLock operationLock = SetupOperationLock.Acquire();
+
+                RecoveryResult recovery = UpdateRecovery.Run(_log, _registration);
+                if (!recovery.ShouldContinue) { return await FailureAsync(recovery.ExitCode, recovery.Message); }
+                if (recovery.Recovered) { _log.Write("Recovered from an interrupted setup operation."); }
 
                 if (_request.RequestedAction == InstallAction.Uninstall) { return await RunUninstallAsync(askFirst: true); }
 
@@ -44,11 +60,13 @@ namespace VRPC.Install
                 }
 
                 _state = InstallStateStore.Load();
+                _previousState = _state;
                 _legacy = _state is null ? LegacyInstallation.Detect() : null;
                 _currentVersion = GetCurrentVersion();
                 bool existing = _state is not null || _legacy is not null || File.Exists(AppPaths.AppExe);
 
                 InstallAction action = DetermineAction(existing);
+                ResolveRegistrations();
                 InstallPlan plan = BuildPlan(action, existing);
 
                 InstallDecision decision = await _presenter.ConfirmAsync(ConsentCopy.ForPlan(plan));
@@ -97,66 +115,100 @@ namespace VRPC.Install
                     if (!await StopHostAsync(AppPaths.AppExe, _currentVersion, action, allowPipe: true)) { return await FailureAsync(SetupExitCodes.Running, "VRPC is still running."); }
                 }
 
+                _staging = Path.Combine(AppPaths.Root, ".staging-" + Guid.NewGuid().ToString("N"));
+                _backup = Path.Combine(AppPaths.Root, "app.old");
+                _hadApp = Directory.Exists(AppPaths.App);
+
+                // An app.old this transaction did not create must never be
+                // deleted: it can be the only usable copy of the previous
+                // install. Fail before touching anything else in that case.
+                EnsureBackupDestinationIsSafe();
+
+                // The marker must exist before anything on disk changes, including
+                // the staging folder, so an interruption is always explainable.
+                BeginTransaction();
+
                 _presenter.Report($"Verifying and staging {_payload.Files.Count} files");
-                string staging = StagePayload();
-                string backup = Path.Combine(AppPaths.Root, "app.old");
+                try
+                {
+                    StagePayload(_staging);
+                }
+                catch (PayloadException e)
+                {
+                    AbortBeforeSwap();
+                    return await FailureAsync(SetupExitCodes.InvalidPayload, e.Message);
+                }
+                catch (Exception e)
+                {
+                    AbortBeforeSwap();
+                    return await FailureAsync(SetupExitCodes.Failed, "The new files could not be staged. Close the browser and retry. " + e.Message);
+                }
+
+                Advance(UpdatePhase.Staged);
+                Advance(UpdatePhase.StoppingHost);
 
                 if (!await StopHostAsync(File.Exists(AppPaths.AppExe) ? AppPaths.AppExe : _legacy?.AppExe ?? AppPaths.AppExe, _currentVersion, action, allowPipe: true))
                 {
-                    TryDeleteDirectory(staging);
-                    return await FailureAsync(SetupExitCodes.Running, "VRPC started again and is still running. Close the browser and retry.");
+                    bool clean = AbortBeforeSwap();
+                    return await FailureAsync(SetupExitCodes.Running, "VRPC started again and is still running. Close the browser and retry."
+                        + (clean ? "" : " The update marker was kept because the previous registration could not be restored."));
                 }
 
-                if (!SkipRegistration) { RegistrationManager.Remove(_state); }
-
-                bool hadApp = Directory.Exists(AppPaths.App);
-                UpdateTransaction transaction = new()
+                if (_registration.Enabled)
                 {
-                    Phase = UpdatePhase.Committing,
-                    TargetVersion = _payload.Version,
-                    PreviousVersion = _currentVersion,
-                    StagingDir = staging,
-                    BackupDir = backup,
-                    StartedAtUtc = DateTime.UtcNow.ToString("o")
-                };
-                InstallStateStore.SaveTransaction(transaction);
+                    // Persist the intent before touching the registration. Recovery
+                    // re-applies the previous IDs idempotently, so this closes the
+                    // window where the keys are gone but the marker still claims
+                    // they were never removed.
+                    _registrationRemoved = true;
+                    Advance(UpdatePhase.StoppingHost);
+                    _registration.Remove(_state);
+                }
+                Advance(UpdatePhase.RegistrationRemoved);
+                Advance(UpdatePhase.Committing);
 
                 _presenter.Report("Replacing the application files");
                 try
                 {
-                    Commit(staging, backup, hadApp);
+                    Commit(_staging, _backup, _hadApp);
+                    _staging = null;
+                }
+                catch (InstallException e)
+                {
+                    _log.Error("Commit failed: " + e.Message);
+                    AbortAfterCommitFailure();
+                    return await FailureAsync(e.ExitCode, e.Message);
                 }
                 catch (Exception e)
                 {
                     _log.Error("Commit failed: " + e.Message);
-                    TryDeleteDirectory(staging);
-                    RestoreRegistration();
-                    InstallStateStore.DeleteTransaction();
-                    return await FailureAsync(SetupExitCodes.Failed, "The application files could not be replaced. Close the browser and retry. " + e.Message);
+                    bool clean = AbortAfterCommitFailure();
+                    return await FailureAsync(SetupExitCodes.Failed, "The application files could not be replaced. Close the browser and retry. " + e.Message
+                        + (clean ? "" : " The update marker was kept for manual recovery."));
                 }
+
+                Advance(UpdatePhase.Committed);
+                Advance(UpdatePhase.Verifying);
 
                 _presenter.Report("Running the self-test");
-                if (!SmokeTest(AppPaths.AppExe))
-                {
-                    RollbackCommit(backup, hadApp);
-                    RestoreRegistration();
-                    InstallStateStore.DeleteTransaction();
-                    return await FailureAsync(SetupExitCodes.Failed, "The new version failed its self-test. The previous installation was restored.");
-                }
+                if (!SmokeTest(AppPaths.AppExe)) { return await RollbackAndFailAsync("The new version failed its self-test."); }
 
+                Advance(UpdatePhase.Registering);
                 _presenter.Report("Registering native messaging");
                 TransactionResult applied = ApplyRegistrationAndState();
-                if (!applied.Success)
+                if (!applied.Success) { return await RollbackAndFailAsync(applied.Error); }
+
+                IReadOnlyList<string> postCommitErrors = VerifyCommittedInstall();
+                if (postCommitErrors.Count > 0)
                 {
-                    RollbackCommit(backup, hadApp);
-                    RestoreRegistration();
-                    InstallStateStore.DeleteTransaction();
-                    return await FailureAsync(SetupExitCodes.Failed, applied.Error);
+                    return await RollbackAndFailAsync("The installed version did not verify: " + string.Join("; ", postCommitErrors));
                 }
 
+                Advance(UpdatePhase.Done);
                 _presenter.Report("Cleaning up");
-                TryDeleteDirectory(backup);
+                TryDeleteDirectory(_backup);
                 InstallStateStore.DeleteTransaction();
+                _transaction = null;
                 CleanupLegacy();
                 _log.Write("Install/update completed.");
 
@@ -190,6 +242,15 @@ namespace VRPC.Install
                 _log.Error(e.ToString());
                 return await FailureAsync(SetupExitCodes.Failed, $"Installation failed: {e.Message}");
             }
+        }
+
+        // Chooses the IDs the new registration must use; an update cannot fall
+        // back to the official defaults without losing a custom registration.
+        private void ResolveRegistrations()
+        {
+            _effectiveRegistration = RegistrationPolicy.ResolveTarget(_state, _request.Registration, _registration.Enabled);
+            _previousRegistration = RegistrationPolicy.ResolvePrevious(_state, _request.Registration, _registration.Enabled);
+            _log.Write($"Registration: chromium=[{string.Join(", ", _effectiveRegistration.ChromiumExtensionIds)}] firefox=[{string.Join(", ", _effectiveRegistration.FirefoxExtensionIds)}] previousChromium=[{string.Join(", ", _previousRegistration.ChromiumExtensionIds)}] previousFirefox=[{string.Join(", ", _previousRegistration.FirefoxExtensionIds)}]");
         }
 
         // Picks install, update, repair or a rejected downgrade.
@@ -239,10 +300,9 @@ namespace VRPC.Install
         }
 
         // Stages under the install root so the swap stays on one volume.
-        private string StagePayload()
+        private void StagePayload(string staging)
         {
             if (_payload is null) { throw new InvalidOperationException("Payload is not loaded."); }
-            string staging = Path.Combine(AppPaths.Root, ".staging-" + Guid.NewGuid().ToString("N"));
             _log.Write($"Staging {_payload.Files.Count} files in {staging}");
             _payload.CopyTo(staging);
 
@@ -252,14 +312,19 @@ namespace VRPC.Install
                 TryDeleteDirectory(staging);
                 throw new PayloadException("The staged payload did not verify:\n  " + string.Join("\n  ", errors.Take(10)));
             }
-
-            return staging;
         }
 
         // Swaps app/ with the verified staging folder.
         private void Commit(string staging, string backup, bool hadApp)
         {
-            if (Directory.Exists(backup)) { TryDeleteDirectory(backup); }
+            if (Directory.Exists(backup))
+            {
+                throw new InstallException(
+                    $"An unexpected previous-version backup at {backup} was found while replacing the application files, so VRPC stopped instead of deleting it. " +
+                    "It was kept for manual recovery; move it out of the installation folder and run setup again.",
+                    SetupExitCodes.Failed);
+            }
+
             if (hadApp)
             {
                 _log.Write($"Moving {AppPaths.App} to {backup}");
@@ -281,18 +346,53 @@ namespace VRPC.Install
             }
         }
 
-        // Restores app.old after a failed self-test or registration.
-        private void RollbackCommit(string backup, bool hadApp)
+        // Reconciles a leftover app.old before the transaction marker is written.
+        // With the current app present the leftover is renamed aside; without an
+        // app it stops the operation so the only usable copy is never deleted.
+        private void EnsureBackupDestinationIsSafe()
+        {
+            if (_backup is null) { throw new InvalidOperationException("The backup path is not initialized."); }
+            InstallBackupGuard.Reconcile(_backup, _hadApp, _log);
+        }
+
+        // Restores the known previous app after a failed self-test, registration
+        // or post-commit verification. Returns false when the restore itself
+        // failed and the evidence has to stay on disk.
+        private bool TryRollbackCommit()
         {
             try
             {
+                if (!_hadApp)
+                {
+                    if (Directory.Exists(AppPaths.App)) { Directory.Delete(AppPaths.App, recursive: true); }
+                    if (Directory.Exists(_backup)) { Directory.Delete(_backup, recursive: true); }
+                    _log.Write("Rollback completed: the new installation was removed.");
+                    return true;
+                }
+
                 if (Directory.Exists(AppPaths.App)) { Directory.Delete(AppPaths.App, recursive: true); }
-                if (hadApp && Directory.Exists(backup)) { Directory.Move(backup, AppPaths.App); }
+                if (Directory.Exists(_backup)) { Directory.Move(_backup, AppPaths.App); }
                 _log.Write("Rollback completed.");
+                return true;
             }
             catch (Exception e)
             {
                 _log.Error("Rollback failed: " + e.Message);
+                return false;
+            }
+        }
+
+        private void RestorePreviousInstallState()
+        {
+            try
+            {
+                if (_previousState is not null) { InstallStateStore.Save(_previousState); }
+                else { InstallStateStore.Delete(); }
+                _state = _previousState;
+            }
+            catch (Exception e)
+            {
+                _log.Error("Could not restore the install state: " + e.Message);
             }
         }
 
@@ -303,13 +403,15 @@ namespace VRPC.Install
 
             try
             {
-                RegistrationResult registration = SkipRegistration
-                    ? new RegistrationResult()
-                    : RegistrationManager.Apply(AppPaths.AppExe, _request.Registration);
-                if (!SkipRegistration) { ArpRegistration.Write(_payload.Version, AppPaths.AppExe, AppPaths.AppExe); }
+                RegistrationResult registration = new();
+                if (_registration.Enabled)
+                {
+                    registration = _registration.Apply(AppPaths.AppExe, _effectiveRegistration, _payload.Version);
+                }
 
                 InstallState state = new()
                 {
+                    Schema = InstallState.CurrentSchema,
                     Version = _payload.Version,
                     Channel = _payload.Channel,
                     AppDir = AppPaths.App,
@@ -318,12 +420,13 @@ namespace VRPC.Install
                     PreviousVersion = _currentVersion,
                     MigratedFrom = _legacy?.Root ?? "",
                     ArpKey = ArpRegistration.KeyPath,
-                    ExtensionIds = registration.ExtensionIds,
+                    ChromiumExtensionIds = _effectiveRegistration.ChromiumExtensionIds.ToList(),
+                    FirefoxExtensionIds = _effectiveRegistration.FirefoxExtensionIds.ToList(),
                     Manifests = registration.Manifests,
                     RegistryKeys = registration.RegistryKeys
                 };
                 InstallStateStore.Save(state);
-                if (!SkipRegistration) { ArpRegistration.RemoveLegacy(); }
+                if (_registration.Enabled) { _registration.RemoveLegacy(); }
                 _state = state;
                 return new TransactionResult { Success = true };
             }
@@ -334,31 +437,130 @@ namespace VRPC.Install
             }
         }
 
-        private void RestoreRegistration()
+        // Verifies the executable, the install state and the recorded manifests
+        // before app.old and the marker are removed.
+        private IReadOnlyList<string> VerifyCommittedInstall()
         {
-            if (SkipRegistration) { return; }
+            List<string> errors = new();
+            if (_payload is null)
+            {
+                errors.Add("the payload is not loaded");
+                return errors;
+            }
+
+            errors.AddRange(InstallVerification.VerifyApp(AppPaths.App, _payload.Version));
+            errors.AddRange(InstallVerification.VerifyInstallState(_payload.Version));
+
+            if (_registration.Enabled && errors.Count == 0)
+            {
+                InstallState? state = InstallStateStore.Load();
+                IReadOnlyList<RegisteredManifest> manifests = state is not null ? state.Manifests : Array.Empty<RegisteredManifest>();
+                try { _registration.Verify(AppPaths.AppExe, manifests); }
+                catch (RegistrationException e) { errors.Add(e.Message); }
+            }
+
+            return errors;
+        }
+
+        // Puts the previous registration back after a rollback. Returns false when
+        // it could not be restored, so the marker is kept.
+        private bool RestoreRegistration()
+        {
+            if (!_registrationRemoved) { return true; }
+
             try
             {
                 string? oldExe = null;
-                if (_state is not null && File.Exists(Path.Combine(AppPaths.App, AppPaths.AppExeName))) { oldExe = AppPaths.AppExe; }
+                if (_previousState is not null && File.Exists(AppPaths.AppExe)) { oldExe = AppPaths.AppExe; }
                 if (oldExe is null && _legacy is not null && File.Exists(_legacy.AppExe)) { oldExe = _legacy.AppExe; }
 
                 if (oldExe is not null)
                 {
-                    RegistrationManager.Apply(oldExe, _request.Registration);
-                    if (_state is not null) { ArpRegistration.Write(_currentVersion, oldExe, oldExe); }
+                    _registration.Apply(oldExe, _previousRegistration, _currentVersion);
                     _log.Write("Restored the previous native-messaging registration.");
                 }
                 else
                 {
-                    RegistrationManager.Remove(null);
-                    ArpRegistration.Remove();
+                    _registration.Remove(null);
+                    _registration.RemoveArp();
+                    _log.Write("Removed the native-messaging registration of the failed installation.");
                 }
+
+                _registrationRemoved = false;
+                return true;
             }
             catch (Exception e)
             {
                 _log.Error("Could not restore registration: " + e.Message);
+                return false;
             }
+        }
+
+        private bool AbortBeforeSwap()
+        {
+            TryDeleteDirectory(_staging ?? "");
+            _staging = null;
+            bool restored = RestoreRegistration();
+            if (restored)
+            {
+                InstallStateStore.DeleteTransaction();
+                _transaction = null;
+            }
+            else
+            {
+                _log.Error("The update marker was kept because the previous registration could not be restored.");
+            }
+
+            return restored;
+        }
+
+        // A failed commit may have left the application folder half-moved; the
+        // commit itself already tried to put the backup back. The marker is only
+        // removed when the disk really is back in a consistent state, otherwise
+        // the next run's recovery restores it.
+        private bool AbortAfterCommitFailure()
+        {
+            TryDeleteDirectory(_staging ?? "");
+            _staging = null;
+            bool restored = RestoreRegistration();
+            bool diskConsistent = _hadApp
+                ? Directory.Exists(AppPaths.App) && !Directory.Exists(_backup)
+                : !Directory.Exists(_backup) || Directory.Exists(AppPaths.App);
+            if (restored && diskConsistent)
+            {
+                InstallStateStore.DeleteTransaction();
+                _transaction = null;
+                return true;
+            }
+
+            _log.Error("The update marker was kept because the installation could not be verified after the failed commit.");
+            return false;
+        }
+
+        private async Task<InstallResult> RollbackAndFailAsync(string message)
+        {
+            bool filesRestored = TryRollbackCommit();
+            bool stateRestored = false;
+            bool registrationRestored = false;
+            if (filesRestored)
+            {
+                RestorePreviousInstallState();
+                stateRestored = true;
+                registrationRestored = RestoreRegistration();
+            }
+            if (filesRestored && stateRestored && registrationRestored)
+            {
+                if (_previousState is null) { InstallStateStore.Delete(); }
+                InstallStateStore.DeleteTransaction();
+                _transaction = null;
+                _log.Write("Rolled back to the previous installation.");
+                return await FailureAsync(SetupExitCodes.Failed, message + " The previous installation was restored.");
+            }
+
+            _log.Error("Automatic rollback was incomplete; the update marker was kept.");
+            return await FailureAsync(SetupExitCodes.Failed,
+                message + " Automatic rollback was incomplete; the update files and the update marker were kept for manual recovery. " +
+                "Reinstall VRPC from the latest release. Your settings and listening history are kept.");
         }
 
         // Runs --selftest and checks its output marker.
@@ -488,6 +690,40 @@ namespace VRPC.Install
             }
         }
 
+        // Removes the updater's downloaded/extracted packages and its cached
+        // state. User data is untouched: it is only removed by the --purge path.
+        private void CleanupUpdaterArtifacts()
+        {
+            string updates = AppPaths.UpdatesDir;
+            try
+            {
+                if (Directory.Exists(updates) && AppPaths.IsUnderUpdatesRoot(updates))
+                {
+                    Directory.Delete(updates, recursive: true);
+                    _log.Write("Removed the updater download folder.");
+                }
+            }
+            catch (Exception e)
+            {
+                _log.Error("Could not remove the updater download folder: " + e.Message);
+            }
+
+            foreach (string suffix in new[] { "", ".bak" })
+            {
+                string path = AppPaths.UpdaterStatePath + suffix;
+                try
+                {
+                    if (!File.Exists(path) || !AppPaths.IsUnderRoot(path)) { continue; }
+                    File.Delete(path);
+                    _log.Write($"Removed {Path.GetFileName(path)}.");
+                }
+                catch (Exception e)
+                {
+                    _log.Error($"Could not remove {Path.GetFileName(path)}: " + e.Message);
+                }
+            }
+        }
+
         // Tries the control pipe first, then asks before force-closing. The
         // question is the panel's second screen when the panel is available.
         private async Task<bool> StopHostAsync(string exePath, string version, InstallAction action, bool allowPipe)
@@ -583,10 +819,10 @@ namespace VRPC.Install
 
             _presenter.Report("Removing the application files");
 
-            if (!SkipRegistration)
+            if (_registration.Enabled)
             {
-                RegistrationManager.Remove(_state);
-                RegistrationManager.Remove(null);
+                _registration.Remove(_state);
+                _registration.RemoveAllKeys();
             }
 
             try
@@ -618,13 +854,17 @@ namespace VRPC.Install
             }
             catch { }
 
+            // Uninstall also removes the updater's scratch files and cached
+            // state. Settings and listening data stay unless --purge.
+            CleanupUpdaterArtifacts();
+
             _presenter.Report("Removing the registry keys");
 
-            if (!SkipRegistration)
+            if (_registration.Enabled)
             {
-                ArpRegistration.Remove();
-                ArpRegistration.RemoveLegacy();
-                RegistrationManager.Remove(null);
+                _registration.RemoveArp();
+                _registration.RemoveLegacy();
+                _registration.RemoveAllKeys();
             }
 
             InstallResult result = new()
@@ -642,32 +882,41 @@ namespace VRPC.Install
             return result;
         }
 
-        // Restores app.old if a previous update died mid-swap.
-        private void RecoverInterruptedTransaction()
+        // Writes the transaction marker before any file changes.
+        private void BeginTransaction()
         {
-            UpdateTransaction? transaction = InstallStateStore.LoadTransaction();
-            if (transaction is null) { return; }
+            if (_payload is null) { throw new InvalidOperationException("Payload is not loaded."); }
+            if (_staging is null || _backup is null) { throw new InvalidOperationException("The staging paths are not initialized."); }
 
-            _log.Write($"Recovering an interrupted update (phase {transaction.Phase}).");
-            try
+            UpdateTransaction transaction = new()
             {
-                string staging = transaction.StagingDir;
-                string backup = transaction.BackupDir;
-                if (AppPaths.IsUnderRoot(staging) && Directory.Exists(staging)) { Directory.Delete(staging, recursive: true); }
-                if (AppPaths.IsUnderRoot(backup) && Directory.Exists(backup) && !Directory.Exists(AppPaths.App))
-                {
-                    Directory.Move(backup, AppPaths.App);
-                    _log.Write("Restored the previous app folder.");
-                }
-            }
-            catch (Exception e)
-            {
-                _log.Error("Recovery failed: " + e.Message);
-            }
-            finally
-            {
-                InstallStateStore.DeleteTransaction();
-            }
+                Schema = UpdateTransaction.CurrentSchema,
+                Phase = UpdatePhase.Staging,
+                TargetVersion = _payload.Version,
+                PreviousVersion = _currentVersion,
+                StagingDir = _staging,
+                BackupDir = _backup,
+                HadAppBefore = _hadApp,
+                RegistrationRemoved = false,
+                StartedAtUtc = DateTime.UtcNow.ToString("o"),
+                TargetChromiumExtensionIds = _effectiveRegistration.ChromiumExtensionIds.ToList(),
+                TargetFirefoxExtensionIds = _effectiveRegistration.FirefoxExtensionIds.ToList(),
+                PreviousChromiumExtensionIds = _previousRegistration.ChromiumExtensionIds.ToList(),
+                PreviousFirefoxExtensionIds = _previousRegistration.FirefoxExtensionIds.ToList()
+            };
+            _transaction = transaction;
+            InstallStateStore.SaveTransaction(transaction);
+            _log.Write($"Update marker written: phase={transaction.Phase} target={transaction.TargetVersion} previous={transaction.PreviousVersion} hadApp={transaction.HadAppBefore}");
+        }
+
+        // Records the current phase so an interruption is always explainable.
+        private void Advance(string phase)
+        {
+            if (_transaction is null) { return; }
+            _transaction.Phase = phase;
+            _transaction.RegistrationRemoved = _registrationRemoved;
+            InstallStateStore.SaveTransaction(_transaction);
+            _log.Write($"Update marker: phase={phase} registrationRemoved={_registrationRemoved}");
         }
 
         // Logs and presents a failure result.
@@ -706,7 +955,7 @@ namespace VRPC.Install
 
         private static void TryDeleteDirectory(string path)
         {
-            try { if (Directory.Exists(path)) { Directory.Delete(path, recursive: true); } } catch { }
+            try { if (!string.IsNullOrWhiteSpace(path) && Directory.Exists(path)) { Directory.Delete(path, recursive: true); } } catch { }
         }
 
         private sealed class TransactionResult
