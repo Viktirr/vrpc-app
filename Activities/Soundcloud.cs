@@ -64,15 +64,6 @@ namespace VRPC.DiscordRPCManager.Activities
                 }
                 if (songStatus == "Playing")
                 {
-                    if (VRPCGlobalData.MiscellaneousSongData.ContainsKey("status"))
-                    {
-                        if (songStatus != VRPCGlobalData.MiscellaneousSongData["status"])
-                        {
-                            log.Write("[Soundcloud] Rich Presence update from status (show playing off)");
-                            VRPCGlobalEvents.SendForceUpdateRPEvent();
-                        }
-                    }
-
                     VRPCGlobalData.MiscellaneousSongData["status"] = "Playing";
                     richPresence.Assets.SmallImageKey = "";
                     richPresence.Assets.SmallImageText = "";
@@ -164,21 +155,36 @@ namespace VRPC.DiscordRPCManager.Activities
             VRPCGlobalData.MiscellaneousSongData["platform"] = "Soundcloud";
             VRPCGlobalData.MiscellaneousSongData["songduration"] = totalTime.ToString();
 
+            string? previousStatus = VRPCGlobalData.MiscellaneousSongData.GetValueOrDefault("status");
             UpdateListeningData(songName, artistName, songStatus);
             UpdateStatus(songStatus, currentTime, watermarkString);
             UpdateImage(smallSongBanner);
             UpdateButton(songUrl);
 
+            if (songStatus == "Paused" && !VRPCSettings.settingsData.ShowPlayingStatus)
+            {
+                return;
+            }
+
             if (tempRichPresenceStart > DateTime.UtcNow - TimeSpan.FromSeconds(currentTime) + TimeSpan.FromSeconds(timestampTolerance) || tempRichPresenceStart < DateTime.UtcNow - TimeSpan.FromSeconds(currentTime) - TimeSpan.FromSeconds(timestampTolerance))
             {
                 log.Write("[Soundcloud] Rich Presence update from Timestamp");
                 VRPCGlobalEvents.SendForceUpdateRPEvent();
+                return;
             }
 
             if (songStatus + watermarkString != tempRichPresenceSmallImageText && VRPCSettings.settingsData.ShowPlayingStatus)
             {
                 log.Write("[Soundcloud] Rich Presence update from status");
                 VRPCGlobalEvents.SendForceUpdateRPEvent();
+                return;
+            }
+
+            if (!VRPCSettings.settingsData.ShowPlayingStatus && songStatus == "Playing" && previousStatus != "Playing")
+            {
+                log.Write("[Soundcloud] Rich Presence update from status (show playing off)");
+                VRPCGlobalEvents.SendForceUpdateRPEvent();
+                return;
             }
 
             if (cleanSongName != songName)
@@ -187,6 +193,7 @@ namespace VRPC.DiscordRPCManager.Activities
                 {
                     log.Write("[Soundcloud] Rich Presence update from song name");
                     VRPCGlobalEvents.SendForceUpdateRPEvent();
+                    return;
                 }
             }
             else
@@ -195,6 +202,7 @@ namespace VRPC.DiscordRPCManager.Activities
                 {
                     log.Write("[Soundcloud] Rich Presence update from song name");
                     VRPCGlobalEvents.SendForceUpdateRPEvent();
+                    return;
                 }
             }
         }

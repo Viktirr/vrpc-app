@@ -102,13 +102,6 @@ namespace VRPC.DiscordRPCManager.Activities
                     }
                     if (songStatus == "Playing")
                     {
-                        if (VRPCGlobalData.MiscellaneousSongData.ContainsKey("status"))
-                        {
-                            if (songStatus != VRPCGlobalData.MiscellaneousSongData["status"])
-                            {
-                                VRPCGlobalEvents.SendForceUpdateRPEvent(delayRichPresence);
-                            }
-                        }
                         VRPCGlobalData.MiscellaneousSongData["status"] = "Playing";
                         richPresence.Assets.SmallImageKey = "";
                         richPresence.Assets.SmallImageText = "";
@@ -308,11 +301,17 @@ namespace VRPC.DiscordRPCManager.Activities
                 richPresence.State = artistName;
             }
 
+            string? previousStatus = VRPCGlobalData.MiscellaneousSongData.GetValueOrDefault("status");
             UpdateListeningData(songName, artistName, songStatus);
             UpdateStatus(songStatus, currentTimeInt, watermarkString);
             UpdateImage(songId, smallSongBanner);
             UpdateAlbum(albumName, releaseYear, isVideo);
             UpdateButton(songId);
+
+            if (songStatus == "Paused" && !VRPCSettings.settingsData.ShowPlayingStatus)
+            {
+                return;
+            }
 
             if (tempRichPresenceStart > DateTime.UtcNow - TimeSpan.FromSeconds(currentTimeInt) + TimeSpan.FromSeconds(timestampTolerance) || tempRichPresenceStart < DateTime.UtcNow - TimeSpan.FromSeconds(currentTimeInt) - TimeSpan.FromSeconds(timestampTolerance))
             {
@@ -322,6 +321,13 @@ namespace VRPC.DiscordRPCManager.Activities
             }
 
             if (songStatus + watermarkString != tempRichPresenceSmallImageText && VRPCSettings.settingsData.ShowPlayingStatus)
+            {
+                log.Write("[YouTube Music] Rich Presence update from status");
+                VRPCGlobalEvents.SendForceUpdateRPEvent(delayRichPresence);
+                return;
+            }
+
+            if (!VRPCSettings.settingsData.ShowPlayingStatus && songStatus == "Playing" && previousStatus != "Playing")
             {
                 log.Write("[YouTube Music] Rich Presence update from status");
                 VRPCGlobalEvents.SendForceUpdateRPEvent(delayRichPresence);
