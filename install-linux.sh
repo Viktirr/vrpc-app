@@ -42,7 +42,7 @@ install_app() {
         "${VRPC_PAYLOAD:-}" \
         "$SCRIPT_DIR/dist" \
         "$SCRIPT_DIR/publish-linux" \
-        "$SCRIPT_DIR/bin/Release/net9.0/linux-x64/publish"; do
+        "$SCRIPT_DIR/bin/Release/net11.0/linux-x64/publish"; do
         if [ -n "$cand" ] && [ -f "$cand/VRPC" ]; then payload_dir="$cand"; break; fi
     done
     if [ -z "$payload_dir" ] && [ -f "$SCRIPT_DIR/VRPC" ]; then

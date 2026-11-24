@@ -45,7 +45,7 @@ The value should point at a manifest in `%LOCALAPPDATA%\Viktir\VRPCApp\manifests
 
 ## Building
 Prerequisites:
-- .NET 9 SDK or newer
+- .NET 11 SDK or newer
 - Rust with Cargo (the setup panel is a separate Rust process, and the release script builds it)
 - Node.js 20+ for the update-signing/release scripts
 - Windows for the packaged panel; the Linux publish ships without it
@@ -112,7 +112,7 @@ Please make sure the extension is allowed native-messaging permissions from the 
 - Auto-updater state: `%LOCALAPPDATA%\Viktir\VRPCApp\state\updater-state.json`; update launch output: `state\logs\update-*.log` and `state\logs\update-setup-console-*.log`
 
 ### Missing dependencies
-The release build is self-contained. A development build requires the .NET 9 runtime.  
+The release build is self-contained. A development build requires the .NET 11 runtime.  
 
 If you are using an older `minimal` build, please switch to a `full` build, relaunching the installer works fine.
 
