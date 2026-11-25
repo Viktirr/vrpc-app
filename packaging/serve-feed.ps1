@@ -1,7 +1,7 @@
 # Serves a signed VRPC update manifest on localhost for updater rehearsal.
 #
 # It mimics the production feed contract closely enough to exercise a real client:
-#   GET /vrpc/update-manifest  -> 200 application/json, ETag, Cache-Control
+#   GET /products/vrpc/update-manifest  -> 200 application/json, ETag, Cache-Control
 #   GET with If-None-Match     -> 304 with no body
 #   anything else              -> 404 JSON
 #
@@ -11,13 +11,13 @@
 
 <#
 .SYNOPSIS
-    Serves a signed VRPC update manifest from http://127.0.0.1:<port>/vrpc/update-manifest.
+    Serves a signed VRPC update manifest from http://127.0.0.1:<port>/products/vrpc/update-manifest.
 
 .DESCRIPTION
     A local rehearsal helper for the auto-updater. It implements the read-only
     subset of the API feed:
 
-      - GET /vrpc/update-manifest returns the manifest file bytes with
+      - GET /products/vrpc/update-manifest returns the manifest file bytes with
         Content-Type: application/json, a strong ETag (SHA-256 of the bytes) and
         Cache-Control: public, max-age=300.
       - A matching If-None-Match header returns 304 with the ETag and no body.
@@ -56,7 +56,7 @@
         -ManifestPath artifacts\VRPC-1.2.0-win-x64.update-manifest.json -Port 8765
 
 .EXAMPLE
-    Invoke-WebRequest http://127.0.0.1:8765/vrpc/update-manifest -UseBasicParsing
+    Invoke-WebRequest http://127.0.0.1:8765/products/vrpc/update-manifest -UseBasicParsing
 #>
 
 [CmdletBinding()]
@@ -164,7 +164,7 @@ function Handle-Client {
             "Server"        = "vrpc-serve-feed"
         }
 
-        if ($targetPath -ne "/vrpc/update-manifest") {
+        if ($targetPath -ne "/products/vrpc/update-manifest" -and $targetPath -ne "/vrpc/update-manifest") {
             $body = Get-Utf8JsonBytes '{"error":"not_found"}'
             $headers = [ordered]@{}
             foreach ($key in $commonHeaders.Keys) { $headers[$key] = $commonHeaders[$key] }
@@ -242,7 +242,7 @@ try {
         $listener = New-Object System.Net.Sockets.TcpListener($address, $Port)
         $listener.Start()
         $actualPort = ([System.Net.IPEndPoint]$listener.LocalEndpoint).Port
-        $url = "http://${BindAddress}:${actualPort}/vrpc/update-manifest"
+        $url = "http://${BindAddress}:${actualPort}/products/vrpc/update-manifest"
 
         if (-not [string]::IsNullOrWhiteSpace($ReadyFile)) {
             if ([System.IO.Path]::IsPathRooted($ReadyFile)) { $readyFullPath = [System.IO.Path]::GetFullPath($ReadyFile) }

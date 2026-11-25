@@ -11,7 +11,15 @@ namespace VRPC.Setup
         public static int Run(string[] args)
         {
             RedirectConsoleIfRequested();
-            return RunAsync(args).GetAwaiter().GetResult();
+            try
+            {
+                return RunAsync(args).GetAwaiter().GetResult();
+            }
+            catch (InstallException e)
+            {
+                Console.Error.WriteLine(e.Message);
+                return e.ExitCode;
+            }
         }
 
         // An updater-started setup outlives the host that launched it, so its
@@ -108,6 +116,14 @@ namespace VRPC.Setup
                 return SetupExitCodes.Usage;
             }
 
+            // The operation lock is taken before the lease and the consent prompt:
+            // a second setup can never overwrite a live lease and then exit,
+            // leaving the first setup unprotected. Acquire throws exit code 7,
+            // which Run reports before any panel is shown.
+            using SetupOperationLock operationLock = SetupOperationLock.Acquire();
+            using SetupLifecycleLease lease = SetupLifecycle.Begin(
+                options.Action?.ToString() ?? "setup",
+                options.SetupLeaseToken);
             SetupLog log = new();
             IPresenter presenter = await CreatePresenterAsync(options);
             log.Write($"UI: {DescribePresenter(presenter)}");
@@ -126,7 +142,7 @@ namespace VRPC.Setup
 
             try
             {
-                InstallEngine engine = new(request, presenter, log);
+                InstallEngine engine = new(request, presenter, log, lease: lease, operationLock: operationLock);
                 InstallResult result = await engine.RunAsync();
                 return result.ExitCode;
             }
@@ -216,6 +232,7 @@ namespace VRPC.Setup
         public bool UsePanel { get; private set; }
         public bool AllowDowngrade { get; private set; }
         public bool PurgeData { get; private set; }
+        public string SetupLeaseToken { get; private set; } = "";
         public RegistrationOptions Registration { get; private set; } = RegistrationOptions.Default;
 
         public static SetupOptions Parse(string[] args)
@@ -253,6 +270,9 @@ namespace VRPC.Setup
                         break;
                     case "--root":
                         options.Root = Path.GetFullPath(Next(args, ref i, argument));
+                        break;
+                    case "--setup-lease-token":
+                        options.SetupLeaseToken = Next(args, ref i, argument);
                         break;
                     case "--extension-id":
                         if (!chromiumCleared)

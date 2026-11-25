@@ -145,6 +145,13 @@ Environment equivalents, because the parent's environment is inherited for free:
 `stall`), and `OVERLAY_VALIDATION` (`--probe` ignores `VRPC_UI_SIMULATE` on
 purpose: a probe is a probe).
 
+These environment hooks exist only in builds with the `automation` Cargo
+feature (on by default for development and verification). The release package
+builds the panel with `--no-default-features --features verify`, so an inherited
+`VRPC_UI_AUTO` cannot answer a real consent prompt. VRPC setup also strips all
+of these variables from both the setup and panel launch environments before the
+process starts.
+
 A snapshot dump is taken on the first presented frames, which with `--dump` means
 before a parent's `consent` can arrive; pipe the line into the process yourself
 if you need a dump of the parent's copy.

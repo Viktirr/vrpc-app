@@ -20,6 +20,13 @@ namespace VRPC.Host
                 if (!VRPCSettings.settingsData.DisableClearingLogs) { log.Clear(); }
                 log.Info($"[Host] Starting VRPC {ProductInfo.Version} root={AppPaths.Root} args={string.Join(" ", args)}");
 
+                if (VRPC.Install.SetupLifecycle.BlocksHostStartup(out string setupReason))
+                {
+                    log.Warn("[Host] Startup suppressed: " + setupReason);
+                    NativeMessagingCommands.SendLockExit();
+                    return 0;
+                }
+
                 Program.Instance = SingleInstance.Acquire();
                 if (!Program.Instance.IsOwner)
                 {

@@ -17,6 +17,7 @@ namespace VRPC.Application
         public const string MigrationMarkerName = "migration.json";
         public const string UpdaterStateName = "updater-state.json";
         public const string SetupOperationLockName = "setup-operation.lock";
+        public const string SetupLeaseName = "setup-session.json";
         public const string ControlPipeName = "vrpc-control";
 
         private static string _root = GetDefaultRoot();
@@ -35,6 +36,7 @@ namespace VRPC.Application
         public static string PidPath => Path.Combine(State, "host.pid");
         public static string UpdaterStatePath => Path.Combine(State, UpdaterStateName);
         public static string SetupOperationLockPath => Path.Combine(State, SetupOperationLockName);
+        public static string SetupLeasePath => Path.Combine(State, SetupLeaseName);
         public static string UpdatesDir => Path.Combine(State, "updates");
         public static string ControlPipe => ControlPipeName;
 

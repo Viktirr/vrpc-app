@@ -45,6 +45,8 @@ dotnet publish (Join-Path $repoRoot "VRPC.csproj") `
     -p:DebugSymbols=false `
     -o $publishDirectory
 
+if ($LASTEXITCODE -ne 0) { throw "dotnet publish failed (exit $LASTEXITCODE); no package, signature or release may be produced." }
+
 Get-ChildItem $publishDirectory -Recurse -File | Where-Object { $_.Extension -in ".pdb", ".xml" } | Remove-Item -Force
 
 # The setup panel: a separate Rust process that VRPC.exe spawns. It is Windows
@@ -54,11 +56,13 @@ Get-ChildItem $publishDirectory -Recurse -File | Where-Object { $_.Extension -in
 if ($Runtime -like "win-*") {
     $installerUiDirectory = Join-Path $repoRoot "installer-ui"
     $installerUiExe = Join-Path $installerUiDirectory "target\release\vrpc-installer-ui.exe"
-    Write-Host "Building the setup panel (cargo build --release --locked)..."
+    Write-Host "Building the setup panel (cargo build --release --locked --no-default-features --features verify)..."
 
     Push-Location $installerUiDirectory
     try {
-        cargo build --release --locked
+        # --no-default-features drops the inherited VRPC_UI_* automation hooks
+        # from the panel that ships to users; `verify` stays for --probe/--dump.
+        cargo build --release --locked --no-default-features --features verify
         if ($LASTEXITCODE -ne 0) { throw "cargo build failed for installer-ui (exit $LASTEXITCODE)." }
     }
     finally {
@@ -70,9 +74,16 @@ if ($Runtime -like "win-*") {
     Write-Host "Setup panel: $([System.IO.Path]::GetFileName($installerUiExe)) $((Get-Item $installerUiExe).Length) bytes"
 }
 
-$reportedVersion = (& (Join-Path $publishDirectory "VRPC.exe") --version).Trim()
-if ($reportedVersion -notmatch [regex]::Escape($Version)) {
-    throw "Published executable reports '$reportedVersion', expected version '$Version'."
+$reportedRaw = (& (Join-Path $publishDirectory "VRPC.exe") --version | Out-String).Trim()
+if ($LASTEXITCODE -ne 0) { throw "The published VRPC.exe --version check failed (exit $LASTEXITCODE)." }
+
+$reportedMatch = [regex]::Match($reportedRaw, '^VRPC\s+(?<version>\S+)$')
+if (-not $reportedMatch.Success) {
+    throw "The published executable reported '$reportedRaw', which is not 'VRPC <version>'."
+}
+$reportedVersion = $reportedMatch.Groups["version"].Value
+if (-not [string]::Equals($reportedVersion, $Version, [System.StringComparison]::Ordinal)) {
+    throw "Published executable reports '$reportedVersion', expected exactly '$Version'."
 }
 Copy-Item -Path (Join-Path $publishDirectory "*") -Destination $packageDirectory -Recurse -Force
 

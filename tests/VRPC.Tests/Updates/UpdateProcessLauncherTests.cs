@@ -3,6 +3,7 @@ using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
 using VRPC.Application;
+using VRPC.Install;
 using VRPC.Updates;
 
 namespace VRPC.Tests.Updates
@@ -66,6 +67,22 @@ namespace VRPC.Tests.Updates
         }
 
         [Fact]
+        public void Unattended_build_uses_quiet_yes_and_no_panel()
+        {
+            string packageDirectory = CreatePackage("1.2.0");
+
+            ProcessStartInfo? startInfo = UpdateProcessLauncher.BuildStartInfo(
+                packageDirectory, "1.2.0", out _, out string error, unattended: true);
+
+            Assert.NotNull(startInfo);
+            Assert.Equal("", error);
+            List<string> arguments = startInfo!.ArgumentList.ToList();
+            Assert.Contains("--quiet", arguments);
+            Assert.Contains("--yes", arguments);
+            Assert.DoesNotContain("--panel", arguments);
+        }
+
+        [Fact]
         public void Wrong_version_or_foreign_directory_is_rejected()
         {
             string packageDirectory = CreatePackage("1.2.0");
@@ -76,6 +93,55 @@ namespace VRPC.Tests.Updates
             Directory.CreateDirectory(outside);
             Assert.Null(UpdateProcessLauncher.BuildStartInfo(outside, "1.2.0", out _, out string outsideError));
             Assert.Contains("outside the updater", outsideError);
+        }
+
+        [Fact]
+        public void Every_automation_variable_is_scrubbed_from_the_setup_and_panel_environment()
+        {
+            string packageDirectory = CreatePackage("1.2.0");
+            WriteInstallState();
+
+            foreach (string name in AutomationEnvironment.Variables)
+            {
+                Environment.SetEnvironmentVariable(name, "1");
+            }
+
+            try
+            {
+                ProcessStartInfo? setup = UpdateProcessLauncher.BuildStartInfo(packageDirectory, "1.2.0", out _, out string error);
+                Assert.NotNull(setup);
+                Assert.Equal("", error);
+                foreach (string name in AutomationEnvironment.Variables)
+                {
+                    Assert.False(setup!.Environment.ContainsKey(name), $"{name} leaked into the setup environment");
+                }
+                Assert.True(setup!.Environment.ContainsKey("VRPC_SETUP_CONSOLE_LOG"));
+
+                ProcessStartInfo panel = OverlayPresenter.BuildStartInfo(Path.Combine(_root, "vrpc-installer-ui.exe"));
+                foreach (string name in AutomationEnvironment.Variables)
+                {
+                    Assert.False(panel.Environment.ContainsKey(name), $"{name} leaked into the panel environment");
+                }
+            }
+            finally
+            {
+                foreach (string name in AutomationEnvironment.Variables)
+                {
+                    Environment.SetEnvironmentVariable(name, null);
+                }
+            }
+        }
+
+        [Fact]
+        public void Launch_fails_before_host_shutdown_when_the_package_has_no_panel()
+        {
+            string packageDirectory = CreatePackage("1.2.0", includePanel: false);
+
+            UpdateProcessLauncher launcher = new();
+            Assert.False(launcher.TryLaunch(packageDirectory, "1.2.0", unattended: false, out string error));
+
+            Assert.Contains("cannot ask for your approval", error, StringComparison.OrdinalIgnoreCase);
+            Assert.False(File.Exists(AppPaths.SetupLeasePath));
         }
 
         private void WriteInstallState()
@@ -91,17 +157,21 @@ namespace VRPC.Tests.Updates
             File.WriteAllText(AppPaths.InstallStatePath, json, new UTF8Encoding(false));
         }
 
-        private string CreatePackage(string version)
+        private string CreatePackage(string version, bool includePanel = true)
         {
             string operationDirectory = Path.Combine(AppPaths.UpdatesDir, Guid.NewGuid().ToString("N"));
             string packageDirectory = Path.Combine(operationDirectory, "package");
             Directory.CreateDirectory(packageDirectory);
 
-            File.WriteAllText(Path.Combine(packageDirectory, "VRPC.exe"), "stub executable");
-            File.WriteAllText(Path.Combine(packageDirectory, "vrpc-installer-ui.exe"), "stub panel");
+            List<string> names = new() { "VRPC.exe" };
+            if (includePanel) { names.Add("vrpc-installer-ui.exe"); }
+            foreach (string name in names)
+            {
+                File.WriteAllText(Path.Combine(packageDirectory, name), name == "VRPC.exe" ? "stub executable" : "stub panel");
+            }
 
             List<object> files = new();
-            foreach (string name in new[] { "VRPC.exe", "vrpc-installer-ui.exe" })
+            foreach (string name in names)
             {
                 string path = Path.Combine(packageDirectory, name);
                 files.Add(new

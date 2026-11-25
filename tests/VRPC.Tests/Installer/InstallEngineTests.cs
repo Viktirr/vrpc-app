@@ -187,7 +187,7 @@ public class InstallEngineTests
         using InstallerTestEnvironment environment = new();
         environment.WriteInstalledPayload(environment.AppDir, "1.0.0");
         environment.CreateInstallState("1.0.0", "custom-chromium-id", "custom@firefox-id");
-        environment.Registration.FailVerify = true;
+        environment.Registration.FailNextVerify = 1;
         string package = Path.Combine(environment.Root, "package");
         environment.WritePackage(package, "1.1.0", realBinaries: true);
 

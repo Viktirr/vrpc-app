@@ -51,8 +51,13 @@ anyhow = "1"
 serde_json = "1"
 
 [features]
-default = ["verify"]
+default = ["verify", "automation"]
+# `--dump` and the capability report used by `--probe`.
 verify = ["dep:overlay-verify"]
+# Test/verification hooks driven by inherited VRPC_UI_* variables. Release
+# builds pass --no-default-features so an inherited consent automation variable
+# can never answer a real setup prompt.
+automation = []
 
 # Same release profile as the framework (line tables only), so a crash log stays
 # symbolised at a small size cost.

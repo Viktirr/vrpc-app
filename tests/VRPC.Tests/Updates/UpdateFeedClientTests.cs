@@ -246,7 +246,7 @@ namespace VRPC.Tests.Updates
             FakeHttpMessageHandler handler = new(() => TestHttp.Json(ManifestFixture.Envelope()));
 
             Assert.Throws<ArgumentException>(() =>
-                new UpdateFeedClient(handler, new Uri("http://api.viktir.com/vrpc/update-manifest"), "1.1.0", new FakeUpdateManifestVerifier()));
+                new UpdateFeedClient(handler, new Uri("http://api.viktir.com/products/vrpc/update-manifest"), "1.1.0", new FakeUpdateManifestVerifier()));
         }
 
         [Fact]

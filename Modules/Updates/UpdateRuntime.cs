@@ -1,4 +1,5 @@
 using VRPC.Application;
+using VRPC.Configuration;
 using VRPC.Install;
 using VRPC.Logging;
 
@@ -54,7 +55,8 @@ namespace VRPC.Updates
                     message => log.Warn(message),
                     message => log.Info(message),
                     () => Program.Shutdown(exit: true),
-                    ResolveInitialDelay());
+                    ResolveInitialDelay(),
+                    () => VRPCSettings.settingsData.UnattendedUpdates);
 
                 Program.Updater = coordinator;
                 coordinator.Start(CancellationToken.None);

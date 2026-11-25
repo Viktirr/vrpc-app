@@ -148,7 +148,8 @@ param(
     [string]$OutDir = "",
     [string]$EnvelopePath = "",
     [string]$PlanPath = "",
-    [string]$TargetCommitish = ""
+    [string]$TargetCommitish = "",
+    [switch]$SelfTest
 )
 
 $ErrorActionPreference = "Stop"
@@ -1117,6 +1118,22 @@ function Publish-GitHubReleaseWithCli {
         Write-Step ("Uploading {0} with gh..." -f $AssetName)
         & $gh.Source release upload $tag $ZipPath --repo $script:Repo
         if ($LASTEXITCODE -ne 0) { Fail "gh release upload failed." }
+
+        # The REST path verifies the hosted draft bytes after upload; the gh path
+        # must enforce the same gate before the release becomes public.
+        Write-Step "Verifying the uploaded draft asset bytes before publishing..."
+        $tempDirectory = Join-Path ([System.IO.Path]::GetTempPath()) ("vrpc-gh-" + [guid]::NewGuid().ToString("N"))
+        New-Item -ItemType Directory -Path $tempDirectory -Force | Out-Null
+        try {
+            & $gh.Source release download $tag --repo $script:Repo --pattern $AssetName --dir $tempDirectory
+            if ($LASTEXITCODE -ne 0) { Fail "gh release download failed for the uploaded draft asset." }
+            $downloadPath = Join-Path $tempDirectory $AssetName
+            if (-not (Test-Path -LiteralPath $downloadPath -PathType Leaf)) { Fail "gh did not download the uploaded draft asset." }
+            Assert-LocalAssetBytes -Path $downloadPath -ExpectedSha $expectedSha -ExpectedSize $expectedSize
+        }
+        finally {
+            if (Test-Path -LiteralPath $tempDirectory) { Remove-Item -LiteralPath $tempDirectory -Recurse -Force -ErrorAction SilentlyContinue }
+        }
     }
 
     if ($wasDraft) {
@@ -1173,6 +1190,29 @@ function Deploy-Feed {
     & git -C $gitRepo push origin main
     if ($LASTEXITCODE -ne 0) { Fail "git push failed; the manifest is committed locally but not deployed." }
     Write-Step "Pushed to origin/main; the API deploy workflow publishes the feed (cache TTL is about 5 minutes)."
+}
+
+if ($SelfTest) {
+    $tempPath = Join-Path ([System.IO.Path]::GetTempPath()) ("vrpc-selftest-" + [guid]::NewGuid().ToString("N") + ".bin")
+    try {
+        [System.IO.File]::WriteAllBytes($tempPath, [byte[]](1, 2, 3, 4))
+        $sha = Get-Sha256Hex $tempPath
+        Assert-LocalAssetBytes -Path $tempPath -ExpectedSha $sha -ExpectedSize 4
+
+        $failed = $false
+        try { Assert-LocalAssetBytes -Path $tempPath -ExpectedSha ("0" * 64) -ExpectedSize 4 } catch { $failed = $true }
+        if (-not $failed) { throw "The asset SHA-256 mismatch was accepted." }
+
+        $failed = $false
+        try { Assert-LocalAssetBytes -Path $tempPath -ExpectedSha $sha -ExpectedSize 5 } catch { $failed = $true }
+        if (-not $failed) { throw "The asset size mismatch was accepted." }
+
+        Write-Step "Asset byte verification self-test passed (hash and size mismatches rejected)."
+        exit 0
+    }
+    finally {
+        if (Test-Path -LiteralPath $tempPath) { Remove-Item -LiteralPath $tempPath -Force -ErrorAction SilentlyContinue }
+    }
 }
 
 Invoke-Main

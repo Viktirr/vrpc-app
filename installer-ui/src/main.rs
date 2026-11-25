@@ -195,43 +195,50 @@ impl Args {
         // inherited for free, which makes it the one control channel that works
         // with no protocol change at all — the same reason the framework's own
         // OVERLAY_* switches are environment variables.
-        if let Ok(v) = std::env::var("VRPC_UI_AUTO") {
-            out.auto = Decision::parse(&v);
-        }
-        if let Ok(v) = std::env::var("VRPC_UI_AUTO_ANSWER") {
-            out.auto_answer = match v.as_str() {
-                "yes" => Some(true),
-                "no" => Some(false),
-                _ => None,
-            };
-        }
-        if let Some(ms) = std::env::var("VRPC_UI_AUTO_DELAY_MS")
-            .ok()
-            .and_then(|v| v.parse::<u64>().ok())
+        //
+        // Production builds compile these hooks out: an inherited VRPC_UI_AUTO
+        // must never answer a real consent prompt (see the `automation` Cargo
+        // feature; the release build passes --no-default-features).
+        #[cfg(feature = "automation")]
         {
-            out.auto_delay = Duration::from_millis(ms);
-        }
-        if let Ok(v) = std::env::var("VRPC_UI_DUMP") {
-            if !v.is_empty() {
-                out.dump = Some(v);
+            if let Ok(v) = std::env::var("VRPC_UI_AUTO") {
+                out.auto = Decision::parse(&v);
             }
-        }
-        // The failure modes are environment as well, for the same reason: a
-        // parent that wants to exercise its fallback can set the variable in its
-        // own environment and the child inherits it, with no protocol support.
-        if let Ok(v) = std::env::var("VRPC_UI_SIMULATE") {
-            match v.as_str() {
-                "init-failure" => out.simulate_init_failure = true,
-                "hang" => out.simulate_hang = true,
-                "stall" => out.simulate_stall = true,
-                _ => {}
+            if let Ok(v) = std::env::var("VRPC_UI_AUTO_ANSWER") {
+                out.auto_answer = match v.as_str() {
+                    "yes" => Some(true),
+                    "no" => Some(false),
+                    _ => None,
+                };
             }
-        }
-        if let Some(ms) = std::env::var("VRPC_UI_AUTO_DISMISS_MS")
-            .ok()
-            .and_then(|v| v.parse::<u64>().ok())
-        {
-            out.auto_dismiss = Some(Duration::from_millis(ms));
+            if let Some(ms) = std::env::var("VRPC_UI_AUTO_DELAY_MS")
+                .ok()
+                .and_then(|v| v.parse::<u64>().ok())
+            {
+                out.auto_delay = Duration::from_millis(ms);
+            }
+            if let Ok(v) = std::env::var("VRPC_UI_DUMP") {
+                if !v.is_empty() {
+                    out.dump = Some(v);
+                }
+            }
+            // The failure modes are environment as well, for the same reason: a
+            // parent that wants to exercise its fallback can set the variable in
+            // its own environment and the child inherits it, with no protocol support.
+            if let Ok(v) = std::env::var("VRPC_UI_SIMULATE") {
+                match v.as_str() {
+                    "init-failure" => out.simulate_init_failure = true,
+                    "hang" => out.simulate_hang = true,
+                    "stall" => out.simulate_stall = true,
+                    _ => {}
+                }
+            }
+            if let Some(ms) = std::env::var("VRPC_UI_AUTO_DISMISS_MS")
+                .ok()
+                .and_then(|v| v.parse::<u64>().ok())
+            {
+                out.auto_dismiss = Some(Duration::from_millis(ms));
+            }
         }
         let mut i = 0;
         while i < argv.len() {

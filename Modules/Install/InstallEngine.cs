@@ -12,6 +12,8 @@ namespace VRPC.Install
         private readonly IPresenter _presenter;
         private readonly SetupLog _log;
         private readonly IInstallerRegistration _registration;
+        private readonly SetupLifecycleLease? _lease;
+        private readonly SetupOperationLock? _operationLock;
         private PayloadManifest? _payload;
         private InstallState? _state;
         private InstallState? _previousState;
@@ -25,24 +27,30 @@ namespace VRPC.Install
         private bool _hadApp;
         private bool _registrationRemoved;
 
-        public InstallEngine(InstallRequest request, IPresenter presenter, SetupLog log, IInstallerRegistration? registration = null)
+        public InstallEngine(InstallRequest request, IPresenter presenter, SetupLog log, IInstallerRegistration? registration = null, SetupLifecycleLease? lease = null, SetupOperationLock? operationLock = null)
         {
             _request = request;
             _presenter = presenter;
             _log = log;
             _registration = registration ?? new InstallerRegistration();
+            _lease = lease;
+            _operationLock = operationLock;
         }
 
         // Install/update/repair entry point; uninstall has its own path.
         public async Task<InstallResult> RunAsync()
         {
+            SetupOperationLock? ownedOperationLock = null;
             try
             {
                 _log.Write($"Action={_request.RequestedAction?.ToString() ?? "auto"} Source={_request.SourceDirectory} Root={AppPaths.Root}");
 
                 // The lock comes before recovery: two setup processes must never
-                // recover or mutate the same installation at the same time.
-                using SetupOperationLock operationLock = SetupOperationLock.Acquire();
+                // recover or mutate the same installation at the same time. Setup
+                // acquires it before the consent prompt and hands it in; a direct
+                // engine caller (tests) still gets the same guarantee here.
+                SetupOperationLock operationLock = _operationLock ?? (ownedOperationLock = SetupOperationLock.Acquire());
+                _lease?.Refresh();
 
                 RecoveryResult recovery = UpdateRecovery.Run(_log, _registration);
                 if (!recovery.ShouldContinue) { return await FailureAsync(recovery.ExitCode, recovery.Message); }
@@ -226,6 +234,7 @@ namespace VRPC.Install
                     Version = _payload.Version,
                     LogPath = _log.Path
                 };
+                _lease?.Dispose();
                 await _presenter.CompleteAsync(result);
                 return result;
             }
@@ -241,6 +250,10 @@ namespace VRPC.Install
             {
                 _log.Error(e.ToString());
                 return await FailureAsync(SetupExitCodes.Failed, $"Installation failed: {e.Message}");
+            }
+            finally
+            {
+                ownedOperationLock?.Dispose();
             }
         }
 
@@ -382,18 +395,39 @@ namespace VRPC.Install
             }
         }
 
-        private void RestorePreviousInstallState()
+        // Restores the recorded previous state and proves it by reading the file
+        // back. A failed write or a mismatching read is never treated as success.
+        private bool RestorePreviousInstallState()
         {
-            try
+            if (_previousState is not null)
             {
-                if (_previousState is not null) { InstallStateStore.Save(_previousState); }
-                else { InstallStateStore.Delete(); }
-                _state = _previousState;
+                if (!InstallStateStore.TrySave(_previousState, out string saveError))
+                {
+                    _log.Error("Could not restore the install state: " + saveError);
+                    return false;
+                }
             }
-            catch (Exception e)
+            else
             {
-                _log.Error("Could not restore the install state: " + e.Message);
+                if (!InstallStateStore.TryDelete(out string deleteError))
+                {
+                    _log.Error("Could not remove the target install state: " + deleteError);
+                    return false;
+                }
             }
+
+            InstallState? restored = InstallStateStore.Load();
+            bool matches = _previousState is null
+                ? restored is null
+                : restored is not null && InstallVerification.VersionMatches(restored.Version, _previousState.Version);
+            if (!matches)
+            {
+                _log.Error($"The restored install state does not read back as {_previousState?.Version ?? "absent"}.");
+                return false;
+            }
+
+            _state = _previousState;
+            return true;
         }
 
         // Registers only after the new exe passes its self-test.
@@ -476,7 +510,12 @@ namespace VRPC.Install
 
                 if (oldExe is not null)
                 {
-                    _registration.Apply(oldExe, _previousRegistration, _currentVersion);
+                    RegistrationResult applied = _registration.Apply(oldExe, _previousRegistration, _currentVersion);
+                    if (_previousState is not null && applied.Manifests.Count > 0)
+                    {
+                        _previousState.Manifests = applied.Manifests;
+                        _previousState.RegistryKeys = applied.RegistryKeys;
+                    }
                     _log.Write("Restored the previous native-messaging registration.");
                 }
                 else
@@ -496,22 +535,51 @@ namespace VRPC.Install
             }
         }
 
+        // True when the on-disk state still describes the version that was
+        // installed before this transaction (including "no state" for a fresh
+        // install).
+        private bool StateMatchesPrevious()
+        {
+            InstallState? current = InstallStateStore.Load();
+            if (_previousState is null) { return current is null; }
+            return current is not null && InstallVerification.VersionMatches(current.Version, _previousState.Version);
+        }
+
+        private bool VerifyRestoredRegistration()
+        {
+            if (!_registration.Enabled || _previousState is null) { return true; }
+            try
+            {
+                InstallState? state = InstallStateStore.Load();
+                _registration.Verify(AppPaths.AppExe, state?.Manifests ?? new List<RegisteredManifest>());
+                return true;
+            }
+            catch (RegistrationException e)
+            {
+                _log.Error("The restored registration did not verify: " + e.Message);
+                return false;
+            }
+        }
+
         private bool AbortBeforeSwap()
         {
             TryDeleteDirectory(_staging ?? "");
             _staging = null;
             bool restored = RestoreRegistration();
-            if (restored)
+            bool stateOk = StateMatchesPrevious();
+            bool appOk = !_hadApp || InstallVerification.VerifyApp(AppPaths.App, _currentVersion).Count == 0;
+            bool registrationOk = VerifyRestoredRegistration();
+            if (restored && stateOk && appOk && registrationOk)
             {
                 InstallStateStore.DeleteTransaction();
                 _transaction = null;
             }
             else
             {
-                _log.Error("The update marker was kept because the previous registration could not be restored.");
+                _log.Error("The update marker was kept because the previous registration, install state or application files could not be verified.");
             }
 
-            return restored;
+            return restored && stateOk && appOk;
         }
 
         // A failed commit may have left the application folder half-moved; the
@@ -526,7 +594,10 @@ namespace VRPC.Install
             bool diskConsistent = _hadApp
                 ? Directory.Exists(AppPaths.App) && !Directory.Exists(_backup)
                 : !Directory.Exists(_backup) || Directory.Exists(AppPaths.App);
-            if (restored && diskConsistent)
+            bool stateOk = StateMatchesPrevious();
+            bool appOk = !_hadApp || InstallVerification.VerifyApp(AppPaths.App, _currentVersion).Count == 0;
+            bool registrationOk = VerifyRestoredRegistration();
+            if (restored && diskConsistent && stateOk && appOk && registrationOk)
             {
                 InstallStateStore.DeleteTransaction();
                 _transaction = null;
@@ -540,17 +611,17 @@ namespace VRPC.Install
         private async Task<InstallResult> RollbackAndFailAsync(string message)
         {
             bool filesRestored = TryRollbackCommit();
-            bool stateRestored = false;
-            bool registrationRestored = false;
-            if (filesRestored)
+            bool registrationRestored = filesRestored && RestoreRegistration();
+            bool stateRestored = filesRestored && RestorePreviousInstallState();
+
+            bool appVerified = !_hadApp || (filesRestored && InstallVerification.VerifyApp(AppPaths.App, _currentVersion).Count == 0);
+            bool stateVerified = _previousState is null
+                ? InstallStateStore.Load() is null
+                : InstallVerification.VerifyInstallState(_previousState.Version).Count == 0;
+            bool registrationVerified = !registrationRestored || VerifyRestoredRegistration();
+
+            if (filesRestored && registrationRestored && stateRestored && appVerified && stateVerified && registrationVerified)
             {
-                RestorePreviousInstallState();
-                stateRestored = true;
-                registrationRestored = RestoreRegistration();
-            }
-            if (filesRestored && stateRestored && registrationRestored)
-            {
-                if (_previousState is null) { InstallStateStore.Delete(); }
                 InstallStateStore.DeleteTransaction();
                 _transaction = null;
                 _log.Write("Rolled back to the previous installation.");
@@ -878,6 +949,7 @@ namespace VRPC.Install
                 Version = _currentVersion,
                 LogPath = _log.Path
             };
+            _lease?.Dispose();
             await _presenter.CompleteAsync(result);
             return result;
         }
@@ -899,6 +971,7 @@ namespace VRPC.Install
                 HadAppBefore = _hadApp,
                 RegistrationRemoved = false,
                 StartedAtUtc = DateTime.UtcNow.ToString("o"),
+                PreviousInstallState = _previousState is null ? null : InstallStateStore.Clone(_previousState),
                 TargetChromiumExtensionIds = _effectiveRegistration.ChromiumExtensionIds.ToList(),
                 TargetFirefoxExtensionIds = _effectiveRegistration.FirefoxExtensionIds.ToList(),
                 PreviousChromiumExtensionIds = _previousRegistration.ChromiumExtensionIds.ToList(),
@@ -916,6 +989,7 @@ namespace VRPC.Install
             _transaction.Phase = phase;
             _transaction.RegistrationRemoved = _registrationRemoved;
             InstallStateStore.SaveTransaction(_transaction);
+            _lease?.Refresh();
             _log.Write($"Update marker: phase={phase} registrationRemoved={_registrationRemoved}");
         }
 
@@ -932,6 +1006,9 @@ namespace VRPC.Install
                 Version = _payload?.Version ?? "",
                 LogPath = _log.Path
             };
+            // A kept marker still blocks host startup; the lease itself only needs
+            // to cover the mutation window, not how long a human reads the error.
+            _lease?.Dispose();
             await _presenter.FailAsync(result);
             return result;
         }
@@ -949,6 +1026,7 @@ namespace VRPC.Install
                 Message = action == InstallAction.Uninstall ? "Nothing was uninstalled." : "Nothing was changed.",
                 LogPath = _log.Path
             };
+            _lease?.Dispose();
             await _presenter.CanceledAsync(result);
             return result;
         }

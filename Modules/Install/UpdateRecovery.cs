@@ -30,7 +30,7 @@ namespace VRPC.Install
             registration ??= new InstallerRegistration();
 
             TransactionLoadResult loaded = InstallStateStore.LoadTransactionResult();
-            if (loaded.Corrupt) { return RecoverFromCorruptMarker(loaded, log); }
+            if (loaded.Corrupt) { return RecoverFromCorruptMarker(loaded, registration, log); }
 
             UpdateTransaction? marker = loaded.Transaction;
             if (marker is null) { return RecoverWithoutMarker(log, registration); }
@@ -145,8 +145,16 @@ namespace VRPC.Install
                 && InstallVerification.DirectoryHasVersion(AppPaths.App, marker.TargetVersion, out appVersion);
             if (targetInstalled) { return FinishCommit(marker, staging, appVersion, registration, log); }
 
-            log.Write($"Recovery: the installed app is {appVersion}, not the target {marker.TargetVersion}; removing the stale transaction.");
+            log.Write($"Recovery: the installed app is {appVersion}, not the target {marker.TargetVersion}; restoring the previous state and removing the stale transaction.");
             DeleteStaging(staging, log);
+
+            if (!TryRestorePreviousState(marker, log, out string stateError))
+            {
+                return RecoveryResult.Stop(SetupExitCodes.Failed,
+                    "An interrupted update was found and the previous version is still installed, but its install state could not be restored: " +
+                    stateError + " The update marker was kept for manual recovery.");
+            }
+
             if (!TryRestoreRegistration(marker, AppPaths.AppExe, registration, log, out string registrationError))
             {
                 return RecoveryResult.Stop(SetupExitCodes.Failed,
@@ -154,12 +162,22 @@ namespace VRPC.Install
                     registrationError + " The update marker was kept for manual recovery.");
             }
 
+            IReadOnlyList<string> errors = VerifyRecoveredInstall(marker.PreviousVersion, registration, log);
+            if (errors.Count > 0)
+            {
+                return RecoveryResult.Stop(SetupExitCodes.Failed,
+                    "An interrupted update was found and the previous version is still installed, but it did not verify: " + string.Join("; ", errors) +
+                    " The update marker was kept for manual recovery.");
+            }
+
             InstallStateStore.DeleteTransaction();
             return RecoveryResult.ContinueAfterRecovery;
         }
 
         // app/ is missing and only the backup exists: restore it, but only after the
-        // backup itself is verified. A failed verification keeps the backup and marker.
+        // backup itself is verified. Registration is restored before it is verified
+        // (the interrupted setup already removed it), and a failed step keeps the
+        // backup and marker.
         private static RecoveryResult RecoverFromBackup(UpdateTransaction marker, string staging, string backup, IInstallerRegistration registration, SetupLog log)
         {
             if (!InstallVerification.DirectoryHasVersion(backup, marker.PreviousVersion, out string backupVersion))
@@ -179,14 +197,18 @@ namespace VRPC.Install
             log.Write($"Recovery: restored the previous app folder ({backupVersion}).");
             DeleteStaging(staging, log);
 
-            IReadOnlyList<string> errors = InstallVerification.VerifyApp(AppPaths.App, marker.PreviousVersion);
-            string registrationError = "";
-            bool registrationOk = VerifyRegistrationWhenEnabled(registration, AppPaths.AppExe, log, out registrationError);
-            if (errors.Count > 0 || !registrationOk)
+            IReadOnlyList<string> fileErrors = InstallVerification.VerifyApp(AppPaths.App, marker.PreviousVersion);
+            if (fileErrors.Count > 0)
             {
-                string detail = errors.Count > 0 ? string.Join("; ", errors) : registrationError;
                 return RecoveryResult.Stop(SetupExitCodes.Failed,
-                    "An interrupted update was found and the previous version was restored, but it did not verify: " + detail +
+                    "An interrupted update was found and the previous version was restored, but it did not verify: " + string.Join("; ", fileErrors) +
+                    " The update marker was kept for manual recovery.");
+            }
+
+            if (!TryRestorePreviousState(marker, log, out string stateError))
+            {
+                return RecoveryResult.Stop(SetupExitCodes.Failed,
+                    "The previous version was restored, but its install state could not be restored: " + stateError +
                     " The update marker was kept for manual recovery.");
             }
 
@@ -194,6 +216,14 @@ namespace VRPC.Install
             {
                 return RecoveryResult.Stop(SetupExitCodes.Failed,
                     "The previous version was restored, but the browser registration could not be restored: " + restoreError +
+                    " The update marker was kept for manual recovery.");
+            }
+
+            IReadOnlyList<string> errors = VerifyRecoveredInstall(marker.PreviousVersion, registration, log);
+            if (errors.Count > 0)
+            {
+                return RecoveryResult.Stop(SetupExitCodes.Failed,
+                    "An interrupted update was found and the previous version was restored, but the installation did not verify: " + string.Join("; ", errors) +
                     " The update marker was kept for manual recovery.");
             }
 
@@ -245,18 +275,33 @@ namespace VRPC.Install
 
             log.Write($"Recovery: restored the previous app folder ({backupVersion}) and moved the unverified files to {failedDir}.");
 
-            IReadOnlyList<string> errors = InstallVerification.VerifyApp(AppPaths.App, marker.PreviousVersion);
-            if (errors.Count > 0)
+            IReadOnlyList<string> fileErrors = InstallVerification.VerifyApp(AppPaths.App, marker.PreviousVersion);
+            if (fileErrors.Count > 0)
             {
                 return RecoveryResult.Stop(SetupExitCodes.Failed,
-                    "An interrupted update was found and the previous version was restored, but it did not verify: " + string.Join("; ", errors) +
+                    "An interrupted update was found and the previous version was restored, but it did not verify: " + string.Join("; ", fileErrors) +
                     " The restored files and the update marker were kept for manual recovery.");
+            }
+
+            if (!TryRestorePreviousState(marker, log, out string stateError))
+            {
+                return RecoveryResult.Stop(SetupExitCodes.Failed,
+                    "The previous version was restored, but its install state could not be restored: " + stateError +
+                    " The update marker was kept for manual recovery.");
             }
 
             if (!TryRestoreRegistration(marker, AppPaths.AppExe, registration, log, out string registrationError))
             {
                 return RecoveryResult.Stop(SetupExitCodes.Failed,
                     "The previous version was restored, but the browser registration could not be restored: " + registrationError +
+                    " The update marker was kept for manual recovery.");
+            }
+
+            IReadOnlyList<string> errors = VerifyRecoveredInstall(marker.PreviousVersion, registration, log);
+            if (errors.Count > 0)
+            {
+                return RecoveryResult.Stop(SetupExitCodes.Failed,
+                    "An interrupted update was found and the previous version was restored, but the installation did not verify: " + string.Join("; ", errors) +
                     " The update marker was kept for manual recovery.");
             }
 
@@ -273,7 +318,7 @@ namespace VRPC.Install
         {
             DeleteStaging(staging, log);
 
-            if (marker.HadAppBefore && marker.Schema >= UpdateTransaction.CurrentSchema)
+            if (marker.HadAppBefore && marker.Schema >= 2)
             {
                 return RecoveryResult.Stop(SetupExitCodes.Failed,
                     "An interrupted setup operation was found, but both the installed application and its backup are missing. " +
@@ -370,7 +415,7 @@ namespace VRPC.Install
             }
         }
 
-        private static RecoveryResult RecoverFromCorruptMarker(TransactionLoadResult loaded, SetupLog log)
+        private static RecoveryResult RecoverFromCorruptMarker(TransactionLoadResult loaded, IInstallerRegistration registration, SetupLog log)
         {
             log.Error($"Recovery: the update marker was corrupt; preserved at {loaded.CorruptPath}.");
             string backup = Path.Combine(AppPaths.Root, "app.old");
@@ -386,6 +431,14 @@ namespace VRPC.Install
                         "It was kept for manual recovery; reinstall VRPC from the latest release.");
                 }
 
+                InstallState? state = InstallStateStore.Load();
+                if (state is not null && !InstallVerification.VersionMatches(state.Version, backupVersion))
+                {
+                    return RecoveryResult.Stop(SetupExitCodes.Failed,
+                        $"A corrupt update marker was preserved at {loaded.CorruptPath}, and the backup at {backup} is {backupVersion} while the install state reports {state.Version}. " +
+                        "Both were kept for manual recovery; reinstall VRPC from the latest release.");
+                }
+
                 if (!TryMoveDirectory(backup, AppPaths.App, out string moveError))
                 {
                     return RecoveryResult.Stop(SetupExitCodes.Failed,
@@ -394,6 +447,34 @@ namespace VRPC.Install
                 }
 
                 log.Write($"Recovery: restored the app folder ({backupVersion}) after a corrupt marker.");
+
+                if (state is not null && registration.Enabled)
+                {
+                    List<string> chromium = CleanIds(state.ChromiumExtensionIds);
+                    List<string> firefox = CleanIds(state.FirefoxExtensionIds);
+                    try
+                    {
+                        IReadOnlyList<RegisteredManifest> manifests = state.Manifests;
+                        if (chromium.Count > 0 && firefox.Count > 0)
+                        {
+                            RegistrationResult applied = registration.Apply(AppPaths.AppExe, RegistrationOptions.FromLists(chromium, firefox), backupVersion);
+                            manifests = applied.Manifests;
+                            state.Manifests = applied.Manifests;
+                            state.RegistryKeys = applied.RegistryKeys;
+                            InstallStateStore.Save(state);
+                            log.Write("Recovery: restored the native-messaging registration from the install state.");
+                        }
+                        registration.Verify(AppPaths.AppExe, manifests);
+                    }
+                    catch (Exception e)
+                    {
+                        log.Error("Recovery: the browser registration did not verify after restoring the backup: " + e.Message);
+                        return RecoveryResult.Stop(SetupExitCodes.Failed,
+                            $"A corrupt update marker was preserved at {loaded.CorruptPath}, and VRPC {backupVersion} was restored, but the browser registration could not be verified: " +
+                            e.Message + " The restored files were kept for manual recovery; reinstall VRPC from the latest release.");
+                    }
+                }
+
                 return RecoveryResult.ContinueAfterRecovery;
             }
 
@@ -427,6 +508,73 @@ namespace VRPC.Install
                 log?.Error("Recovery: registration verification failed: " + e.Message);
                 return false;
             }
+        }
+
+        // Restores the schema-3 snapshot and proves the readback. A schema-1/2
+        // marker has no snapshot, so it may only continue when the on-disk state
+        // already agrees with the recorded previous version; a mismatching state
+        // is exactly the corrupt shape this guard exists for.
+        private static bool TryRestorePreviousState(UpdateTransaction marker, SetupLog log, out string error)
+        {
+            error = "";
+            if (marker.PreviousInstallState is not null)
+            {
+                if (!InstallStateStore.TrySave(marker.PreviousInstallState, out string saveError))
+                {
+                    error = "the previous install state could not be written: " + saveError;
+                    return false;
+                }
+                log.Write("Recovery: restored the previous install state.");
+            }
+
+            if (string.IsNullOrWhiteSpace(marker.PreviousVersion)) { return true; }
+
+            InstallState? state = InstallStateStore.Load();
+            if (state is null)
+            {
+                if (marker.PreviousInstallState is not null)
+                {
+                    error = "the restored install state is missing or unreadable";
+                    return false;
+                }
+                log.Write("Recovery: no install state exists to cross-check against the previous version.");
+                return true;
+            }
+
+            if (!InstallVerification.VersionMatches(state.Version, marker.PreviousVersion))
+            {
+                error = $"the install state reports {state.Version}, but the marker records {marker.PreviousVersion}";
+                log.Error("Recovery: " + error + ".");
+                return false;
+            }
+
+            return true;
+        }
+
+        // Application, install state and registration must agree before a marker
+        // is cleared.
+        private static IReadOnlyList<string> VerifyRecoveredInstall(string version, IInstallerRegistration registration, SetupLog log)
+        {
+            List<string> errors = new();
+            if (!string.IsNullOrWhiteSpace(version))
+            {
+                errors.AddRange(InstallVerification.VerifyApp(AppPaths.App, version));
+                errors.AddRange(InstallVerification.VerifyInstallState(version));
+            }
+            if (registration.Enabled)
+            {
+                try
+                {
+                    InstallState? state = InstallStateStore.Load();
+                    registration.Verify(AppPaths.AppExe, state?.Manifests ?? new List<RegisteredManifest>());
+                }
+                catch (RegistrationException e)
+                {
+                    errors.Add(e.Message);
+                    log.Error("Recovery: registration verification failed: " + e.Message);
+                }
+            }
+            return errors;
         }
 
         private static bool TryRestoreRegistration(UpdateTransaction marker, string appExe, IInstallerRegistration registration, SetupLog log, out string error)

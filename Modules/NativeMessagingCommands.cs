@@ -96,6 +96,10 @@ namespace VRPC.NativeMessasing
                 string configValue = config[2].ToString();
 
                 VRPCSettings.SetSetting(configName, configValue);
+                if (string.Equals(configName, "UnattendedUpdates", StringComparison.OrdinalIgnoreCase))
+                {
+                    try { global::Program.Updater?.RequestAutoInstall(); } catch { }
+                }
             }
             catch (Exception e)
             {

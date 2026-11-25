@@ -46,7 +46,7 @@ namespace VRPC.Tests.Integration
             {
                 ["vrpc-test-key"] = File.ReadAllText(FixturePath("vrpc-test-key.public.spki.b64")).Trim()
             });
-            Uri feedUri = new("https://api.viktir.com/vrpc/update-manifest?channel=stable&runtime=win-x64");
+            Uri feedUri = new("https://api.viktir.com/products/vrpc/update-manifest?channel=stable&runtime=win-x64");
             using HttpUpdatePackageSource source = new(transport, feedUri, "1.1.0", verifier);
 
             RecordingLauncher launcher = new();
@@ -86,7 +86,7 @@ namespace VRPC.Tests.Integration
             byte[] manifestBytes = JsonSerializer.SerializeToUtf8Bytes(SignManifest(payload), UpdateJson.Compact);
 
             UpdateTransport transport = new(manifestBytes, zip, package.AssetPath);
-            using HttpUpdatePackageSource source = new(transport, new Uri("https://api.viktir.com/vrpc/update-manifest?channel=stable&runtime=win-x64"), "1.1.0", TestVerifier());
+            using HttpUpdatePackageSource source = new(transport, new Uri("https://api.viktir.com/products/vrpc/update-manifest?channel=stable&runtime=win-x64"), "1.1.0", TestVerifier());
             RecordingLauncher launcher = new();
             UpdateStateStore store = new(Path.Combine(_root, "state", "updater-state.json"));
             using UpdateCoordinator coordinator = new(
@@ -111,7 +111,7 @@ namespace VRPC.Tests.Integration
             byte[] manifestBytes = JsonSerializer.SerializeToUtf8Bytes(manifest, UpdateJson.Compact);
 
             UpdateTransport transport = new(manifestBytes, zip, package.AssetPath);
-            using HttpUpdatePackageSource source = new(transport, new Uri("https://api.viktir.com/vrpc/update-manifest?channel=stable&runtime=win-x64"), "1.1.0", TestVerifier());
+            using HttpUpdatePackageSource source = new(transport, new Uri("https://api.viktir.com/products/vrpc/update-manifest?channel=stable&runtime=win-x64"), "1.1.0", TestVerifier());
             UpdateStateStore store = new(Path.Combine(_root, "state", "updater-state.json"));
             using UpdateCoordinator coordinator = new(
                 "1.1.0", UpdateContract.Channel, source, new RecordingLauncher(), store,
@@ -134,7 +134,7 @@ namespace VRPC.Tests.Integration
             UpdatePayload payload = BuildPayload("1.2.0", File.ReadAllBytes(package.ZipPath), package.AssetPath);
             byte[] manifestBytes = JsonSerializer.SerializeToUtf8Bytes(SignManifest(payload), UpdateJson.Compact);
             UpdateTransport transport = new(manifestBytes, File.ReadAllBytes(package.ZipPath), package.AssetPath);
-            using HttpUpdatePackageSource source = new(transport, new Uri("https://api.viktir.com/vrpc/update-manifest?channel=stable&runtime=win-x64"), "1.1.0", TestVerifier());
+            using HttpUpdatePackageSource source = new(transport, new Uri("https://api.viktir.com/products/vrpc/update-manifest?channel=stable&runtime=win-x64"), "1.1.0", TestVerifier());
             UpdateStateStore store = new(Path.Combine(_root, "state", "updater-state.json"));
             using UpdateCoordinator coordinator = new(
                 "1.1.0", UpdateContract.Channel, source, new RecordingLauncher(), store,
@@ -279,7 +279,7 @@ namespace VRPC.Tests.Integration
             public string? PackageDirectory;
             public string? Version;
 
-            public bool TryLaunch(string packageDirectory, string version, out string errorMessage)
+            public bool TryLaunch(string packageDirectory, string version, bool unattended, out string errorMessage)
             {
                 Launches++;
                 PackageDirectory = packageDirectory;
@@ -307,7 +307,7 @@ namespace VRPC.Tests.Integration
             protected override Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken)
             {
                 string path = request.RequestUri?.AbsolutePath ?? "";
-                if (path == "/vrpc/update-manifest")
+                if (path == "/products/vrpc/update-manifest")
                 {
                     return Task.FromResult(Response(_manifest, "application/json"));
                 }

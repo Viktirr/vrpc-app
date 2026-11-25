@@ -30,6 +30,7 @@ public class UpdateRecoveryTests
     {
         using InstallerTestEnvironment environment = new();
         environment.WriteInstalledPayload(environment.AppDir, "1.0.0");
+        environment.CreateInstallState("1.0.0", "old-chromium", "old@firefox");
         Directory.CreateDirectory(environment.StagingPath);
         File.WriteAllText(Path.Combine(environment.StagingPath, "partial.bin"), "x");
         environment.WriteMarker(environment.NewMarker(UpdatePhase.Staged));
@@ -246,6 +247,7 @@ public class UpdateRecoveryTests
     {
         using InstallerTestEnvironment environment = new();
         environment.WriteInstalledPayload(environment.AppDir, "1.0.0");
+        environment.CreateInstallState("1.0.0", "old-chromium", "old@firefox");
         UpdateTransaction marker = environment.NewMarker(UpdatePhase.RegistrationRemoved);
         marker.RegistrationRemoved = true;
         environment.WriteMarker(marker);
@@ -315,6 +317,7 @@ public class UpdateRecoveryTests
     {
         using InstallerTestEnvironment environment = new();
         environment.WriteInstalledPayload(environment.BackupDir, "1.0.0");
+        environment.CreateInstallState("1.0.0", "old-chromium", "old@firefox");
         environment.WriteJson(environment.MarkerPath, $$"""
         {
           "schema": 1,
@@ -406,5 +409,204 @@ public class UpdateRecoveryTests
         Assert.False(result.Recovered);
         Assert.True(Directory.Exists(environment.AppDir));
         Assert.True(Directory.Exists(environment.BackupDir));
+    }
+
+    // AU-02: the interrupted setup already removed the registration, so restoring
+    // the files and then verifying the missing registration could never succeed.
+    [Fact]
+    public void RestoreFromBackup_RestoresRegistrationBeforeVerifyingIt()
+    {
+        using InstallerTestEnvironment environment = new();
+        environment.WriteInstalledPayload(environment.BackupDir, "1.0.0");
+        environment.CreateInstallState("1.0.0", "old-chromium", "old@firefox");
+        environment.Registration.Remove(null);
+        Assert.False(environment.Registration.Registered);
+
+        UpdateTransaction marker = environment.NewMarker(UpdatePhase.Committing);
+        marker.RegistrationRemoved = true;
+        environment.WriteMarker(marker);
+
+        RecoveryResult result = Recover(environment);
+
+        Assert.False(result.ShouldContinue);
+        Assert.True(environment.Registration.Registered);
+        Assert.Single(environment.Registration.Applied);
+        int apply = environment.Registration.Calls.IndexOf("apply");
+        int verify = environment.Registration.Calls.LastIndexOf("verify");
+        Assert.True(apply >= 0);
+        Assert.True(verify > apply, "registration must be restored before it is verified");
+        Assert.Equal("1.0.0", InstallStateStore.Load()!.Version);
+        Assert.False(File.Exists(environment.MarkerPath));
+    }
+
+    // AU-03: the target state was already written before the crash; the schema-3
+    // snapshot is the only record of what the previous installation looked like.
+    [Fact]
+    public void RestoreFromBackup_UsesTheSnapshotWhenTheDiskHasTheTargetState()
+    {
+        using InstallerTestEnvironment environment = new();
+        environment.WriteInstalledPayload(environment.BackupDir, "1.0.0");
+        InstallState previous = environment.CreateInstallState("1.0.0", "old-chromium", "old@firefox");
+        InstallStateStore.Save(new InstallState
+        {
+            Schema = InstallState.CurrentSchema,
+            Version = "2.0.0",
+            AppDir = environment.AppDir,
+            DataDir = Path.Combine(environment.Root, "data"),
+            ChromiumExtensionIds = new List<string> { "new-chromium" },
+            FirefoxExtensionIds = new List<string> { "new@firefox" }
+        });
+
+        UpdateTransaction marker = environment.NewMarker(UpdatePhase.Committing);
+        marker.PreviousInstallState = previous;
+        environment.WriteMarker(marker);
+
+        RecoveryResult result = Recover(environment);
+
+        Assert.False(result.ShouldContinue);
+        Assert.Equal("1.0.0", InstallStateStore.Load()!.Version);
+        Assert.Equal(new[] { "old-chromium" }, InstallStateStore.Load()!.ChromiumExtensionIds);
+        Assert.False(File.Exists(environment.MarkerPath));
+        Assert.True(environment.Registration.Registered);
+    }
+
+    [Fact]
+    public void LegacyMarkerWithMismatchedState_KeepsTheMarkerInsteadOfClearingIt()
+    {
+        using InstallerTestEnvironment environment = new();
+        environment.WriteInstalledPayload(environment.BackupDir, "1.0.0");
+        environment.CreateInstallState("2.0.0", "new-chromium", "new@firefox");
+        environment.WriteMarker(environment.NewMarker(UpdatePhase.Committing));
+
+        RecoveryResult result = Recover(environment);
+
+        Assert.False(result.ShouldContinue);
+        Assert.True(File.Exists(environment.MarkerPath));
+        Assert.Equal("2.0.0", InstallStateStore.Load()!.Version);
+        Assert.True(InstallVerification.TryReadAppVersion(environment.AppDir, out string version));
+        Assert.Equal("1.0.0", version);
+    }
+
+    [Fact]
+    public void AppAndBackupWithTargetStateAndSnapshot_RestoresThePreviousVersion()
+    {
+        using InstallerTestEnvironment environment = new();
+        environment.WriteInstalledPayload(environment.AppDir, "2.0.0");
+        environment.WriteInstalledPayload(environment.BackupDir, "1.0.0");
+        InstallState previous = environment.CreateInstallState("1.0.0", "old-chromium", "old@firefox");
+        InstallStateStore.Save(new InstallState
+        {
+            Schema = InstallState.CurrentSchema,
+            Version = "2.0.0",
+            AppDir = environment.AppDir,
+            DataDir = Path.Combine(environment.Root, "data"),
+            ChromiumExtensionIds = new List<string> { "new-chromium" },
+            FirefoxExtensionIds = new List<string> { "new@firefox" }
+        });
+
+        UpdateTransaction marker = environment.NewMarker(UpdatePhase.Committing);
+        marker.PreviousInstallState = previous;
+        environment.WriteMarker(marker);
+
+        RecoveryResult result = Recover(environment);
+
+        Assert.False(result.ShouldContinue);
+        Assert.Equal("1.0.0", InstallStateStore.Load()!.Version);
+        Assert.True(InstallVerification.TryReadAppVersion(environment.AppDir, out string version));
+        Assert.Equal("1.0.0", version);
+        Assert.False(File.Exists(environment.MarkerPath));
+        Assert.Empty(Directory.GetDirectories(environment.Root, "app.failed-*"));
+    }
+
+    [Fact]
+    public void StateWriteFailureDuringRecovery_KeepsTheMarkerAndRestoredApp()
+    {
+        using InstallerTestEnvironment environment = new();
+        environment.WriteInstalledPayload(environment.BackupDir, "1.0.0");
+        InstallState previous = environment.CreateInstallState("1.0.0", "old-chromium", "old@firefox");
+        InstallStateStore.Save(new InstallState
+        {
+            Schema = InstallState.CurrentSchema,
+            Version = "2.0.0",
+            AppDir = environment.AppDir,
+            DataDir = Path.Combine(environment.Root, "data")
+        });
+
+        UpdateTransaction marker = environment.NewMarker(UpdatePhase.Committing);
+        marker.PreviousInstallState = previous;
+        environment.WriteMarker(marker);
+
+        // Sabotage the atomic write's temporary path so the state restore fails.
+        Directory.CreateDirectory(Path.Combine(environment.StateDir, "install.json.tmp"));
+
+        RecoveryResult result = Recover(environment);
+
+        Assert.False(result.ShouldContinue);
+        Assert.True(File.Exists(environment.MarkerPath));
+        Assert.True(InstallVerification.TryReadAppVersion(environment.AppDir, out string version));
+        Assert.Equal("1.0.0", version);
+        Assert.Equal("2.0.0", InstallStateStore.Load()!.Version);
+    }
+
+    [Fact]
+    public void RegistrationRestoreFailureDuringRecovery_KeepsTheMarker()
+    {
+        using InstallerTestEnvironment environment = new();
+        environment.WriteInstalledPayload(environment.BackupDir, "1.0.0");
+        environment.CreateInstallState("1.0.0", "old-chromium", "old@firefox");
+        environment.Registration.Remove(null);
+        environment.Registration.FailApply = true;
+
+        UpdateTransaction marker = environment.NewMarker(UpdatePhase.Committing);
+        marker.RegistrationRemoved = true;
+        environment.WriteMarker(marker);
+
+        RecoveryResult result = Recover(environment);
+
+        Assert.False(result.ShouldContinue);
+        Assert.True(File.Exists(environment.MarkerPath));
+        Assert.True(InstallVerification.TryReadAppVersion(environment.AppDir, out string version));
+        Assert.Equal("1.0.0", version);
+        Assert.Equal("1.0.0", InstallStateStore.Load()!.Version);
+    }
+
+    // AU-03 disk-shape matrix: whatever branch runs, a cleared marker always
+    // leaves app, install state and registration at one verified version, and a
+    // kept marker always keeps usable evidence.
+    [Theory]
+    [InlineData("app-only")]
+    [InlineData("backup-only")]
+    [InlineData("both")]
+    public void EveryRecoveryOutcomeIsInternallyConsistent(string shape)
+    {
+        using InstallerTestEnvironment environment = new();
+        InstallState previous = environment.CreateInstallState("1.0.0", "old-chromium", "old@firefox");
+        if (shape is "backup-only" or "both")
+        {
+            environment.WriteInstalledPayload(environment.BackupDir, "1.0.0");
+        }
+        if (shape is "app-only" or "both")
+        {
+            environment.WriteInstalledPayload(environment.AppDir, "2.0.0");
+        }
+
+        UpdateTransaction marker = environment.NewMarker(UpdatePhase.Committing);
+        marker.PreviousInstallState = previous;
+        environment.WriteMarker(marker);
+
+        RecoveryResult result = Recover(environment);
+
+        Assert.True(environment.Registration.Registered, "recovery must leave a usable browser registration");
+        if (!File.Exists(environment.MarkerPath))
+        {
+            InstallState state = InstallStateStore.Load()!;
+            Assert.Empty(InstallVerification.VerifyApp(environment.AppDir, state.Version));
+            Assert.Empty(InstallVerification.VerifyInstallState(state.Version));
+        }
+        else
+        {
+            Assert.False(result.ShouldContinue);
+            Assert.True(Directory.Exists(environment.AppDir) || Directory.Exists(environment.BackupDir));
+        }
     }
 }

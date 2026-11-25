@@ -13,7 +13,7 @@ namespace VRPC.Updates
         public const string Channel = "stable";
         public const string Runtime = "win-x64";
         public const string Algorithm = "ECDSA-P256-SHA256";
-        public const string FeedUrl = "https://api.viktir.com/vrpc/update-manifest?channel=stable&runtime=win-x64";
+        public const string FeedUrl = "https://api.viktir.com/products/vrpc/update-manifest?channel=stable&runtime=win-x64";
         public const int MaxManifestBytes = 64 * 1024;
         public const long MaxPackageBytes = 500_000_000;
         public const string VersionPattern = @"^(0|[1-9][0-9]{0,8})\.(0|[1-9][0-9]{0,8})\.(0|[1-9][0-9]{0,8})$";
@@ -115,6 +115,12 @@ namespace VRPC.Updates
         public string CachedManifestVersion { get; set; } = "";
         public string InstalledTargetVersion { get; set; } = "";
         public string LastLaunchUtc { get; set; } = "";
+
+        // Opt-in unattended installation bookkeeping. The version resets the
+        // counters; the timestamp enforces a delay between attempts.
+        public string UnattendedVersion { get; set; } = "";
+        public int UnattendedAttempts { get; set; }
+        public string LastUnattendedUtc { get; set; } = "";
     }
 
     // What the extension popup receives through Native Messaging.

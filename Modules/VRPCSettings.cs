@@ -172,6 +172,22 @@ namespace VRPC.Configuration
                 { "Type", "bool" }  
             };
 
+            public static Dictionary<string, string> CategoryUpdates { get; } = new Dictionary<string, string> {
+                { "InternalName", "CategoryUpdates" },
+                { "DisplayName", "Updates" },
+                { "Description", "" },
+                { "Visibility", "Shown" },
+                { "Type", "category" }
+            };
+
+            public static Dictionary<string, string> UnattendedUpdates { get; } = new Dictionary<string, string> {
+                { "InternalName", "UnattendedUpdates" },
+                { "DisplayName", "Install Updates Automatically" },
+                { "Description", "When a signed update is downloaded and verified, install it without asking. VRPC will close and restart. You can still check for updates and install manually." },
+                { "Visibility", "Shown" },
+                { "Type", "bool" }
+            };
+
             public static Dictionary<string, object> SettingsDictionary = new Dictionary<string, object> {
                 { "CategoryLogging", CategoryLogging },
                 { "LoggingWriteEnabled", LoggingWriteEnabled },
@@ -188,7 +204,9 @@ namespace VRPC.Configuration
                 { "EnableYouTubeMusic", EnableYouTubeMusic },
                 { "EnableReleaseYear", EnableReleaseYear },
                 { "CategorySoundcloud", CategorySoundcloud },
-                { "EnableSoundcloud", EnableSoundcloud }
+                { "EnableSoundcloud", EnableSoundcloud },
+                { "CategoryUpdates", CategoryUpdates },
+                { "UnattendedUpdates", UnattendedUpdates }
             };
         }
 
@@ -210,6 +228,8 @@ namespace VRPC.Configuration
             public bool EnableReleaseYear { get; set; } = false;
             public bool CategorySoundcloud { get; set; } = true;
             public bool EnableSoundcloud { get; set; } = true;
+            public bool CategoryUpdates { get; set; } = true;
+            public bool UnattendedUpdates { get; set; } = false;
         }
 
         private static SettingsData ReadConfigFile()

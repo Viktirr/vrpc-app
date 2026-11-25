@@ -263,7 +263,34 @@ namespace VRPC.Install
             Trace?.Invoke("[overlay] 'ready' received, the panel owns the prompt");
         }
 
-        private static ProcessStartInfo BuildStartInfo(string exePath)
+        // Cheap preflight used by the updater before it hands off. The update
+        // setup process is spawned with redirected (closed) stdin, so a console
+        // fallback can never ask the user anything. If no panel can be shown, the
+        // handoff must fail before the old host is asked to exit.
+        internal static async Task<(bool Available, string Reason)> CheckAvailabilityAsync(
+            string exePath,
+            CancellationToken cancellationToken = default)
+        {
+            if (!OperatingSystem.IsWindows()) { return (false, "the setup panel is only available on Windows"); }
+            if (string.IsNullOrWhiteSpace(exePath) || !File.Exists(exePath))
+            {
+                return (false, $"the update package does not contain {ExeName}");
+            }
+            if (ScreenReaderRunning())
+            {
+                return (false, "the setup panel is disabled while a screen reader is running, and the updater cannot show an accessible console prompt");
+            }
+
+            string? probeError = await ProbeAsync(exePath, cancellationToken).ConfigureAwait(false);
+            if (probeError is not null)
+            {
+                return (false, "the setup panel cannot render on this machine: " + probeError);
+            }
+
+            return (true, "");
+        }
+
+        internal static ProcessStartInfo BuildStartInfo(string exePath)
         {
             ProcessStartInfo startInfo = new()
             {
@@ -289,6 +316,7 @@ namespace VRPC.Install
                 // a bogus path is surfaced by Process.Start throwing
             }
 
+            AutomationEnvironment.Scrub(startInfo);
             return startInfo;
         }
 

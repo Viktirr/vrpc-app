@@ -137,7 +137,7 @@ namespace VRPC.Install
     // Marker for a directory swap that may have been interrupted.
     public sealed class UpdateTransaction
     {
-        public const int CurrentSchema = 2;
+        public const int CurrentSchema = 3;
 
         // Old markers always carried schema 1 explicitly; defaulting to 1 treats a
         // missing field conservatively.
@@ -150,6 +150,11 @@ namespace VRPC.Install
         public bool HadAppBefore { get; set; }
         public bool RegistrationRemoved { get; set; }
         public string StartedAtUtc { get; set; } = "";
+
+        // Schema 3: the complete install-state record from before the swap, so
+        // recovery can restore state even when the on-disk record was already
+        // replaced with the target version.
+        public InstallState? PreviousInstallState { get; set; }
         public List<string> TargetChromiumExtensionIds { get; set; } = new();
         public List<string> TargetFirefoxExtensionIds { get; set; } = new();
         public List<string> PreviousChromiumExtensionIds { get; set; } = new();
@@ -240,6 +245,49 @@ namespace VRPC.Install
             File.Move(temporary, path, overwrite: true);
         }
 
+        public static bool TrySave(InstallState state, out string error)
+        {
+            try
+            {
+                Save(state);
+                error = "";
+                return true;
+            }
+            catch (Exception e)
+            {
+                error = e.Message;
+                return false;
+            }
+        }
+
+        public static bool TryDelete(out string error)
+        {
+            try
+            {
+                TryDeleteFile(AppPaths.InstallStatePath);
+                TryDeleteFile(AppPaths.InstallStatePath + ".bak");
+                error = "";
+                return true;
+            }
+            catch (Exception e)
+            {
+                error = e.Message;
+                return false;
+            }
+        }
+
+        // Deep copy used by the transaction journal so a later mutation of the
+        // live state object cannot alter the recorded previous state.
+        public static InstallState Clone(InstallState state)
+        {
+            InstallState? clone = JsonSerializer.Deserialize<InstallState>(
+                JsonSerializer.Serialize(state, InstallJson.Options), InstallJson.Options);
+            if (clone is null) { throw new InvalidOperationException("The install state could not be copied."); }
+            InstallStateMigration.Migrate(clone);
+            clone.RegistrationMigrationFailed = state.RegistrationMigrationFailed;
+            return clone;
+        }
+
         public static void Delete()
         {
             TryDelete(AppPaths.InstallStatePath);
@@ -322,6 +370,11 @@ namespace VRPC.Install
         private static void TryDelete(string path)
         {
             try { if (File.Exists(path)) { File.Delete(path); } } catch { }
+        }
+
+        private static void TryDeleteFile(string path)
+        {
+            if (File.Exists(path)) { File.Delete(path); }
         }
     }
 }

@@ -256,7 +256,15 @@ public sealed class FakeRegistration : IInstallerRegistration
     public bool Enabled { get; set; } = true;
     public bool FailApply { get; set; }
     public bool FailVerify { get; set; }
+    public int FailNextVerify { get; set; }
+    private int _verifyFailuresRemaining;
     public bool FailRemove { get; set; }
+
+    // Stateful model of the real registration: Verify fails after Remove until
+    // Apply restores a manifest set. Recovery must restore before it verifies.
+    public bool Registered { get; set; } = true;
+    public int VerifyCount { get; private set; }
+    public List<string> Calls { get; } = new();
     public List<RegistrationCall> Applied { get; } = new();
     public List<string> VerifiedAppExes { get; } = new();
     public List<InstallState?> RemovedStates { get; } = new();
@@ -268,14 +276,18 @@ public sealed class FakeRegistration : IInstallerRegistration
     public RegistrationResult Apply(string appExe, RegistrationOptions options, string version)
     {
         if (FailApply) { throw new RegistrationException("The fake registration refused to apply."); }
+        Calls.Add("apply");
         Applied.Add(new RegistrationCall(appExe, options.Clone(), version));
+        Registered = true;
         return new RegistrationResult();
     }
 
     public void Remove(InstallState? state)
     {
         if (FailRemove) { throw new RegistrationException("The fake registration refused to be removed."); }
+        Calls.Add("remove");
         RemovedStates.Add(state);
+        Registered = false;
     }
 
     public void RemoveArp() => RemoveArpCount++;
@@ -286,7 +298,15 @@ public sealed class FakeRegistration : IInstallerRegistration
 
     public void Verify(string appExe, IReadOnlyList<RegisteredManifest> manifests)
     {
+        VerifyCount++;
+        Calls.Add("verify");
         if (FailVerify) { throw new RegistrationException("The fake registration verification failed."); }
+        if (FailNextVerify > 0 && _verifyFailuresRemaining < FailNextVerify)
+        {
+            _verifyFailuresRemaining++;
+            throw new RegistrationException("The fake registration verification failed.");
+        }
+        if (!Registered) { throw new RegistrationException("The fake registration was removed and has not been restored."); }
         VerifiedAppExes.Add(appExe);
     }
 }

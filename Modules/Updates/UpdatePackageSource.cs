@@ -30,7 +30,8 @@ namespace VRPC.Updates
     public interface IUpdateProcessLauncher
     {
         // Starts the extracted setup and returns once the child process is
-        // running. The caller performs the host shutdown afterwards.
-        bool TryLaunch(string packageDirectory, string version, out string errorMessage);
+        // running. `unattended` selects --quiet --yes instead of the panel; the
+        // caller performs the host shutdown afterwards.
+        bool TryLaunch(string packageDirectory, string version, bool unattended, out string errorMessage);
     }
 }

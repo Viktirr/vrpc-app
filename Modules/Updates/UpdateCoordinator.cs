@@ -1,6 +1,7 @@
 using System.Security.Cryptography;
 using System.Text.Json;
 using VRPC.Application;
+using VRPC.Install;
 
 namespace VRPC.Updates
 {
@@ -9,10 +10,11 @@ namespace VRPC.Updates
     public sealed class UpdateCoordinator : IDisposable
     {
         private const int InitialDelaySeconds = 45;
-        private const int ManualPollSeconds = 5;
         private const int ReadyRetentionDays = 7;
+        private const int MaxUnattendedAttempts = 3;
         private static readonly TimeSpan AutomaticInterval = TimeSpan.FromHours(24);
         private static readonly TimeSpan ManualRateLimit = TimeSpan.FromMinutes(5);
+        private static readonly TimeSpan UnattendedRetryDelay = TimeSpan.FromMinutes(10);
         private static readonly TimeSpan[] FailureBackoff =
         {
             TimeSpan.FromHours(1),
@@ -29,8 +31,12 @@ namespace VRPC.Updates
         private readonly Action<string>? _info;
         private readonly Action? _onLaunched;
         private readonly TimeSpan _initialDelay;
+        private readonly Func<bool>? _unattendedEnabled;
         private readonly object _gate = new();
         private readonly CancellationTokenSource _lifetime = new();
+        // Manual checks wake this instead of the loop polling: the initial 45 s
+        // delay and a 24 h backoff are both interruptible.
+        private readonly SemaphoreSlim _wake = new(0);
 
         private UpdaterState _state;
         private Task? _loop;
@@ -50,7 +56,8 @@ namespace VRPC.Updates
             Action<string> warn,
             Action<string>? info = null,
             Action? onLaunched = null,
-            TimeSpan? initialDelay = null)
+            TimeSpan? initialDelay = null,
+            Func<bool>? unattendedEnabled = null)
         {
             _currentVersion = currentVersion;
             _channel = channel;
@@ -61,6 +68,7 @@ namespace VRPC.Updates
             _info = info;
             _onLaunched = onLaunched;
             _initialDelay = initialDelay ?? TimeSpan.FromSeconds(InitialDelaySeconds);
+            _unattendedEnabled = unattendedEnabled;
             _state = _store.Load();
             if (string.IsNullOrEmpty(_state.Channel)) { _state.Channel = channel; }
             if (!string.IsNullOrEmpty(_state.ReadyVersion) && IsStrictlyNewerThanCurrent(_state.ReadyVersion))
@@ -136,11 +144,29 @@ namespace VRPC.Updates
                 _lastManualCheckUtc = now;
                 _manualRequested = true;
                 reply = "accepted";
+                try { _wake.Release(); } catch (SemaphoreFullException) { }
                 return true;
             }
         }
 
         public bool TryRequestInstall(out string reply)
+        {
+            return TryRequestInstall(unattended: false, out reply);
+        }
+
+        // The popup/page can turn the setting on while a package is already
+        // ready. Kick the same auto-install path without waiting for the next
+        // scheduled check.
+        public void RequestAutoInstall()
+        {
+            if (_unattendedEnabled?.Invoke() != true) { return; }
+            // Wake the loop so its next-attempt calculation picks up the
+            // unattended retry deadline after a failed immediate attempt.
+            try { _wake.Release(); } catch (SemaphoreFullException) { }
+            _ = Task.Run(AutoInstallIfReady);
+        }
+
+        private bool TryRequestInstall(bool unattended, out string reply)
         {
             string packageDirectory;
             string version;
@@ -156,11 +182,26 @@ namespace VRPC.Updates
                     return false;
                 }
 
+                if (SetupLifecycle.BlocksHostStartup(out string setupReason))
+                {
+                    _warn("[Updater] The update cannot start while setup is active: " + setupReason);
+                    reply = "not_ready";
+                    return false;
+                }
+
+                if (unattended && !CanAutoInstallLocked(out string autoReason))
+                {
+                    _info?.Invoke("[Updater] Automatic installation is waiting: " + autoReason);
+                    reply = "not_ready";
+                    return false;
+                }
+
                 packageDirectory = _state.ReadyPackageDir;
                 version = _state.ReadyVersion;
                 if (string.IsNullOrEmpty(packageDirectory) || string.IsNullOrEmpty(version) ||
                     !Directory.Exists(packageDirectory) || !AppPaths.IsUnderUpdatesRoot(packageDirectory))
                 {
+                    RemoveReadyLocked();
                     _state.LastErrorCategory = UpdateErrorCategory.Internal;
                     _state.LastErrorMessage = "The downloaded update package is no longer available.";
                     _state.LastErrorUtc = DateTime.UtcNow.ToString("O");
@@ -169,6 +210,8 @@ namespace VRPC.Updates
                     reply = "not_ready";
                     return false;
                 }
+
+                if (unattended) { RecordAutoInstallAttemptLocked(version); }
 
                 _phase = UpdatePhase.Installing;
                 SaveLocked();
@@ -188,7 +231,7 @@ namespace VRPC.Updates
                 return false;
             }
 
-            if (!_launcher.TryLaunch(packageDirectory, version, out errorMessage))
+            if (!_launcher.TryLaunch(packageDirectory, version, unattended, out errorMessage))
             {
                 lock (_gate)
                 {
@@ -238,26 +281,32 @@ namespace VRPC.Updates
         {
             try
             {
-                await Task.Delay(_initialDelay, token).ConfigureAwait(false);
+                // The first wait is as interruptible as every later one: a manual
+                // check right after startup must not wait 45 seconds.
+                await WaitForNextAttemptAsync(token, _initialDelay).ConfigureAwait(false);
             }
             catch (OperationCanceledException)
             {
                 return;
             }
 
+            if (token.IsCancellationRequested) { return; }
+
             // The host that starts right after a successful update still sees the
             // previous ready/download records; they describe the version that is
             // now installed and must not be offered again.
             ReconcileInstalledState();
             CleanupAbandonedOperations();
+            AutoInstallIfReady();
 
             while (!token.IsCancellationRequested)
             {
                 try
                 {
-                    await WaitForNextAttemptAsync(token).ConfigureAwait(false);
+                    await WaitForNextAttemptAsync(token, null).ConfigureAwait(false);
                     if (token.IsCancellationRequested) { return; }
                     await RunCheckAsync(token).ConfigureAwait(false);
+                    AutoInstallIfReady();
                 }
                 catch (OperationCanceledException)
                 {
@@ -271,10 +320,23 @@ namespace VRPC.Updates
             }
         }
 
-        // Sleeps in short slices so a manual "check now" can wake the loop
-        // without leaking a pending wait per iteration.
-        private async Task WaitForNextAttemptAsync(CancellationToken token)
+        // Waits for the scheduled attempt, a manual request, or cancellation.
+        // The semaphore is the wake-up edge; there is no polling loop.
+        private async Task WaitForNextAttemptAsync(CancellationToken token, TimeSpan? initialDelay)
         {
+            if (initialDelay.HasValue)
+            {
+                bool signaled = false;
+                if (initialDelay.Value > TimeSpan.Zero)
+                {
+                    signaled = await _wake.WaitAsync(initialDelay.Value, token).ConfigureAwait(false);
+                }
+                // A signal keeps _manualRequested set so the loop starts a check
+                // immediately instead of waiting for the next scheduled attempt.
+                if (!signaled) { ClearManualRequest(); }
+                return;
+            }
+
             while (!token.IsCancellationRequested)
             {
                 bool manual;
@@ -282,13 +344,100 @@ namespace VRPC.Updates
                 lock (_gate)
                 {
                     manual = _manualRequested;
-                    _manualRequested = false;
                     next = NextAttemptUtcLocked();
                 }
 
-                if (manual || DateTime.UtcNow >= next) { return; }
-                await Task.Delay(TimeSpan.FromSeconds(ManualPollSeconds), token).ConfigureAwait(false);
+                if (manual) { ClearManualRequest(); DrainWake(); return; }
+
+                TimeSpan delay = next - DateTime.UtcNow;
+                if (delay <= TimeSpan.Zero) { return; }
+
+                if (await _wake.WaitAsync(delay, token).ConfigureAwait(false))
+                {
+                    ClearManualRequest();
+                    return;
+                }
             }
+        }
+
+        private void ClearManualRequest()
+        {
+            lock (_gate) { _manualRequested = false; }
+        }
+
+        // Opt-in Phase 2: only runs when the user enabled the setting and a
+        // verified package is ready. It uses the same install path as the
+        // popup, but launches setup with --quiet --yes instead of the panel.
+        private void AutoInstallIfReady()
+        {
+            if (_unattendedEnabled?.Invoke() != true) { return; }
+
+            string version;
+            lock (_gate)
+            {
+                if (_disposed ||
+                    _phase == UpdatePhase.Checking ||
+                    _phase == UpdatePhase.Downloading ||
+                    _phase == UpdatePhase.Installing ||
+                    !HasUsableReadyLocked())
+                {
+                    return;
+                }
+                if (!CanAutoInstallLocked(out _)) { return; }
+                version = _state.ReadyVersion;
+            }
+
+            if (TryRequestInstall(unattended: true, out string reply) && reply == "installing")
+            {
+                _info?.Invoke($"[Updater] Installing {version} automatically.");
+            }
+        }
+
+        private bool CanAutoInstallLocked(out string reason)
+        {
+            reason = "";
+            if (string.IsNullOrEmpty(_state.ReadyVersion))
+            {
+                reason = "no update is ready";
+                return false;
+            }
+
+            if (!string.IsNullOrEmpty(_state.UnattendedVersion) &&
+                string.Equals(_state.UnattendedVersion, _state.ReadyVersion, StringComparison.Ordinal) &&
+                _state.UnattendedAttempts >= MaxUnattendedAttempts)
+            {
+                reason = $"the automatic install limit was reached for {_state.ReadyVersion}";
+                return false;
+            }
+
+            if (DateTime.TryParse(_state.LastUnattendedUtc, null, System.Globalization.DateTimeStyles.RoundtripKind, out DateTime last) &&
+                DateTime.UtcNow - last.ToUniversalTime() < UnattendedRetryDelay)
+            {
+                reason = "the previous automatic attempt was recent";
+                return false;
+            }
+
+            return true;
+        }
+
+        private void RecordAutoInstallAttemptLocked(string version)
+        {
+            if (!string.Equals(_state.UnattendedVersion, version, StringComparison.Ordinal))
+            {
+                _state.UnattendedVersion = version;
+                _state.UnattendedAttempts = 0;
+            }
+
+            _state.UnattendedAttempts++;
+            _state.LastUnattendedUtc = DateTime.UtcNow.ToString("O");
+        }
+
+        // A manual request both sets the flag and releases the semaphore. When the
+        // flag already caused the wake, drop the now-redundant permit so it cannot
+        // trigger a second check immediately after the first.
+        private void DrainWake()
+        {
+            while (_wake.Wait(0)) { }
         }
 
         private void ReconcileInstalledState()
@@ -297,6 +446,12 @@ namespace VRPC.Updates
             {
                 bool changed = false;
                 if (!string.IsNullOrEmpty(_state.ReadyVersion) && !IsStrictlyNewerThanCurrent(_state.ReadyVersion))
+                {
+                    RemoveReadyLocked();
+                    _phase = UpdatePhase.Idle;
+                    changed = true;
+                }
+                else if (!string.IsNullOrEmpty(_state.ReadyVersion) && !HasUsableReadyLocked())
                 {
                     RemoveReadyLocked();
                     _phase = UpdatePhase.Idle;
@@ -314,6 +469,13 @@ namespace VRPC.Updates
                 {
                     _state.AvailableVersion = "";
                     _state.AvailableNotesUrl = "";
+                    changed = true;
+                }
+                if (!string.IsNullOrEmpty(_state.UnattendedVersion) && !IsStrictlyNewerThanCurrent(_state.UnattendedVersion))
+                {
+                    _state.UnattendedVersion = "";
+                    _state.UnattendedAttempts = 0;
+                    _state.LastUnattendedUtc = "";
                     changed = true;
                 }
                 if (changed) { SaveLocked(); }
@@ -337,6 +499,27 @@ namespace VRPC.Updates
                    AppPaths.IsUnderUpdatesRoot(_state.ReadyPackageDir);
         }
 
+        // An advertised update that has no usable ready package (or is newer than
+        // the ready one) has not finished preparation. A 304 must never clear it.
+        private bool HasPendingPreparationLocked()
+        {
+            if (!string.IsNullOrEmpty(_state.AvailableVersion) && IsStrictlyNewerThanCurrent(_state.AvailableVersion))
+            {
+                if (!HasUsableReadyLocked()) { return true; }
+                if (StrictVersion.IsValid(_state.ReadyVersion) &&
+                    StrictVersion.Compare(_state.AvailableVersion, _state.ReadyVersion) > 0)
+                {
+                    return true;
+                }
+            }
+
+            // A newer ready record whose package directory disappeared is also
+            // unfinished: a 304 must not freeze that broken state.
+            return !string.IsNullOrEmpty(_state.ReadyVersion) &&
+                   IsStrictlyNewerThanCurrent(_state.ReadyVersion) &&
+                   !HasUsableReadyLocked();
+        }
+
         private async Task RunCheckAsync(CancellationToken token)
         {
             string? etag;
@@ -352,7 +535,7 @@ namespace VRPC.Updates
             UpdateCheckResult result;
             try
             {
-                result = await _source.CheckAsync(etag, token).ConfigureAwait(false);
+                result = await CheckWithEtagRecoveryAsync(etag, token).ConfigureAwait(false);
             }
             catch (OperationCanceledException)
             {
@@ -391,22 +574,88 @@ namespace VRPC.Updates
             }
         }
 
+        // A 304 is only meaningful when the saved ETag describes a package that
+        // actually reached `ready`. Otherwise the cached validator is dropped and
+        // the manifest is fetched once more; a second 304 falls through to the
+        // bounded-backoff failure path in HandleNoUpdate.
+        private async Task<UpdateCheckResult> CheckWithEtagRecoveryAsync(string? etag, CancellationToken token)
+        {
+            UpdateCheckResult result = await _source.CheckAsync(etag, token).ConfigureAwait(false);
+            if (result.Outcome != UpdateCheckOutcome.NotModified) { return result; }
+
+            bool pending;
+            lock (_gate)
+            {
+                pending = HasPendingPreparationLocked();
+                if (pending)
+                {
+                    _state.ManifestEtag = "";
+                    _state.CachedManifestVersion = "";
+                    SaveLocked();
+                }
+            }
+
+            if (!pending) { return result; }
+
+            _warn("[Updater] The saved feed ETag hid an update that was never prepared; fetching the full manifest again.");
+            token.ThrowIfCancellationRequested();
+            return await _source.CheckAsync(null, token).ConfigureAwait(false);
+        }
+
         private void HandleNoUpdate(UpdateCheckResult result)
         {
             lock (_gate)
             {
+                DateTime now = DateTime.UtcNow;
+
+                if (result.Outcome == UpdateCheckOutcome.NotModified && HasPendingPreparationLocked())
+                {
+                    _state.ManifestEtag = "";
+                    _state.CachedManifestVersion = "";
+                    _state.ConsecutiveFailures++;
+                    _state.LastErrorCategory = UpdateErrorCategory.InvalidManifest;
+                    _state.LastErrorMessage = "The update feed reported no change, but the update package is not ready. The full manifest will be retried later.";
+                    _state.LastErrorUtc = now.ToString("O");
+                    _state.LastCheckUtc = now.ToString("O");
+                    _state.NextAllowedAttemptUtc = now.Add(BackoffFor(_state.ConsecutiveFailures)).ToString("O");
+                    _phase = HasUsableReadyLocked() ? UpdatePhase.Ready : UpdatePhase.Failed;
+                    SaveLocked();
+                    return;
+                }
+
+                bool validResponse = result.Outcome != UpdateCheckOutcome.NotModified && result.Outcome != UpdateCheckOutcome.Failed;
+
                 _state.ConsecutiveFailures = 0;
                 _state.LastErrorCategory = "";
                 _state.LastErrorMessage = "";
-                _state.LastCheckUtc = DateTime.UtcNow.ToString("O");
-                _state.NextAllowedAttemptUtc = DateTime.UtcNow.Add(AutomaticInterval).ToString("O");
-                AppendEtagLocked(result.ETag);
+                _state.LastCheckUtc = now.ToString("O");
+                _state.NextAllowedAttemptUtc = now.Add(AutomaticInterval).ToString("O");
+
+                if (validResponse)
+                {
+                    AppendEtagLocked(result.ETag);
+                    string offeredVersion = result.Manifest?.Payload.Version ?? "";
+                    if (!string.IsNullOrWhiteSpace(offeredVersion)) { _state.CachedManifestVersion = offeredVersion; }
+                }
 
                 if (!string.IsNullOrEmpty(_state.ReadyVersion) &&
-                    StrictVersion.IsValid(_state.ReadyVersion) && StrictVersion.IsValid(_currentVersion) &&
-                    StrictVersion.Compare(_state.ReadyVersion, _currentVersion) <= 0)
+                    StrictVersion.IsValid(_state.ReadyVersion) && StrictVersion.IsValid(_currentVersion))
                 {
-                    RemoveReadyLocked();
+                    bool remove = StrictVersion.Compare(_state.ReadyVersion, _currentVersion) <= 0;
+                    if (!remove && !HasUsableReadyLocked()) { remove = true; }
+
+                    // Withdrawal policy: a valid (non-304) feed response is
+                    // authoritative. A ready package it no longer offers is
+                    // revoked. Network failures and 304s keep it installable.
+                    string offered = result.Manifest?.Payload.Version ?? "";
+                    if (!remove && validResponse && StrictVersion.IsValid(offered) &&
+                        StrictVersion.Compare(_state.ReadyVersion, offered) > 0)
+                    {
+                        remove = true;
+                        _info?.Invoke($"[Updater] The feed no longer offers {_state.ReadyVersion}; the downloaded package was revoked.");
+                    }
+
+                    if (remove) { RemoveReadyLocked(); }
                 }
 
                 _state.AvailableVersion = "";
@@ -428,6 +677,20 @@ namespace VRPC.Updates
                 return;
             }
 
+            // A valid feed offer older than an already-ready package is a
+            // withdrawal of that package. Revoke it before preparing anything,
+            // so a failed download cannot leave the withdrawn package installable.
+            lock (_gate)
+            {
+                if (HasUsableReadyLocked() && StrictVersion.IsValid(_state.ReadyVersion) &&
+                    StrictVersion.Compare(_state.ReadyVersion, version) > 0)
+                {
+                    _info?.Invoke($"[Updater] The feed now offers {version}; the downloaded {_state.ReadyVersion} package was revoked.");
+                    RemoveReadyLocked();
+                    SaveLocked();
+                }
+            }
+
             bool alreadyReady;
             lock (_gate)
             {
@@ -442,6 +705,7 @@ namespace VRPC.Updates
                     _state.LastCheckUtc = DateTime.UtcNow.ToString("O");
                     _state.NextAllowedAttemptUtc = DateTime.UtcNow.Add(AutomaticInterval).ToString("O");
                     AppendEtagLocked(result.ETag);
+                    _state.CachedManifestVersion = version;
                     _state.ConsecutiveFailures = 0;
                     _phase = UpdatePhase.Ready;
                     SaveLocked();
@@ -457,7 +721,9 @@ namespace VRPC.Updates
                 _state.AvailableVersion = version;
                 _state.AvailableNotesUrl = manifest.Payload.NotesUrl;
                 _state.LastCheckUtc = DateTime.UtcNow.ToString("O");
-                AppendEtagLocked(result.ETag);
+                // The new ETag is deliberately not persisted here: if download,
+                // extraction or verification fails, the next check must still
+                // fetch the full manifest instead of receiving a 304.
                 SaveLocked();
             }
 
@@ -530,6 +796,12 @@ namespace VRPC.Updates
                 _state.ReadyVersion = version;
                 _state.ReadyPackageDir = packageDirectory;
                 _state.LastNotifiedVersion = version;
+                // Persist the validator only now: it describes the manifest whose
+                // package actually became ready.
+                AppendEtagLocked(result.ETag);
+                _state.CachedManifestVersion = version;
+                _state.AvailableVersion = version;
+                _state.AvailableNotesUrl = manifest.Payload.NotesUrl;
                 _state.ConsecutiveFailures = 0;
                 _state.LastErrorCategory = "";
                 _state.LastErrorMessage = "";
@@ -641,11 +913,31 @@ namespace VRPC.Updates
 
         private DateTime NextAttemptUtcLocked()
         {
-            if (DateTime.TryParse(_state.NextAllowedAttemptUtc, null, System.Globalization.DateTimeStyles.RoundtripKind, out DateTime next))
+            DateTime next = DateTime.UtcNow;
+            if (DateTime.TryParse(_state.NextAllowedAttemptUtc, null, System.Globalization.DateTimeStyles.RoundtripKind, out DateTime parsed))
             {
-                return next.ToUniversalTime();
+                next = parsed.ToUniversalTime();
             }
-            return DateTime.UtcNow;
+
+            // While an unattended retry is still allowed, wake at the retry
+            // deadline instead of waiting a full day. Once the attempt limit is
+            // reached this no longer shortens the schedule. Do not spin while a
+            // handoff is already in progress.
+            if (_phase != UpdatePhase.Installing &&
+                _unattendedEnabled?.Invoke() == true && HasUsableReadyLocked() &&
+                (string.IsNullOrEmpty(_state.UnattendedVersion) ||
+                 !string.Equals(_state.UnattendedVersion, _state.ReadyVersion, StringComparison.Ordinal) ||
+                 _state.UnattendedAttempts < MaxUnattendedAttempts))
+            {
+                DateTime retry = DateTime.UtcNow;
+                if (DateTime.TryParse(_state.LastUnattendedUtc, null, System.Globalization.DateTimeStyles.RoundtripKind, out DateTime last))
+                {
+                    retry = last.ToUniversalTime().Add(UnattendedRetryDelay);
+                }
+                if (retry < next) { next = retry; }
+            }
+
+            return next;
         }
 
         private void AppendEtagLocked(string etag)

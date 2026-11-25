@@ -10,10 +10,42 @@ namespace VRPC.Updates
     // leaking the Native Messaging handles, and preserves custom extension ids.
     public sealed class UpdateProcessLauncher : IUpdateProcessLauncher
     {
-        public bool TryLaunch(string packageDirectory, string version, out string errorMessage)
+        public bool TryLaunch(string packageDirectory, string version, bool unattended, out string errorMessage)
         {
-            ProcessStartInfo? startInfo = BuildStartInfo(packageDirectory, version, out string logPath, out errorMessage);
+            ProcessStartInfo? startInfo = BuildStartInfo(packageDirectory, version, out string logPath, out errorMessage, unattended);
             if (startInfo is null) { return false; }
+
+            // The interactive child runs with redirected input; a console
+            // fallback cannot ask the user anything. Refuse the handoff while the
+            // old host still runs instead of shutting it down and then failing
+            // the consent prompt. An unattended handoff deliberately has no
+            // consent screen; the setup runs with --quiet --yes instead.
+            if (!unattended)
+            {
+                (bool available, string reason) = OverlayPresenter
+                    .CheckAvailabilityAsync(Path.Combine(packageDirectory, OverlayPresenter.ExeName))
+                    .GetAwaiter().GetResult();
+                if (!available)
+                {
+                    errorMessage = "The update cannot ask for your approval: " + reason +
+                        ". Download the latest release from https://viktir.com/vrpc and run its setup to update.";
+                    return false;
+                }
+            }
+
+            // Claim the installation before the child exists. The child takes the
+            // same lease over; if it dies before doing so, the lease points at
+            // this host and becomes stale as soon as the host exits. Never
+            // overwrite a lease owned by a live setup.
+            SetupLifecycleLease? lease = SetupLifecycle.TryBeginHandoff("update handoff", out string leaseError);
+            if (lease is null)
+            {
+                errorMessage = leaseError;
+                return false;
+            }
+            string leaseToken = lease.Token;
+            startInfo.ArgumentList.Add("--setup-lease-token");
+            startInfo.ArgumentList.Add(leaseToken);
 
             OutputPump pump = new OutputPump(logPath);
             try
@@ -22,17 +54,20 @@ namespace VRPC.Updates
                 if (process is null)
                 {
                     pump.Dispose();
+                    lease.Dispose();
                     errorMessage = "The setup process could not be started.";
                     return false;
                 }
 
                 try { process.StandardInput.Close(); } catch { }
                 pump.Start(process.StandardOutput, process.StandardError);
+                lease.Release();
                 return true;
             }
             catch (Exception exception)
             {
                 pump.Dispose();
+                lease.Dispose();
                 errorMessage = "The setup process could not be started: " + exception.Message;
                 return false;
             }
@@ -41,7 +76,7 @@ namespace VRPC.Updates
         // Validates the extracted package and builds the external setup invocation.
         // Split out so the argument/environment contract is unit-testable without
         // starting a real installer process.
-        internal static ProcessStartInfo? BuildStartInfo(string packageDirectory, string version, out string logPath, out string errorMessage)
+        internal static ProcessStartInfo? BuildStartInfo(string packageDirectory, string version, out string logPath, out string errorMessage, bool unattended = false)
         {
             logPath = "";
             errorMessage = "";
@@ -96,7 +131,15 @@ namespace VRPC.Updates
                 startInfo.ArgumentList.Add(packageDirectory);
                 startInfo.ArgumentList.Add("--root");
                 startInfo.ArgumentList.Add(AppPaths.Root);
-                startInfo.ArgumentList.Add("--panel");
+                if (unattended)
+                {
+                    startInfo.ArgumentList.Add("--quiet");
+                    startInfo.ArgumentList.Add("--yes");
+                }
+                else
+                {
+                    startInfo.ArgumentList.Add("--panel");
+                }
                 AddRegistrationArguments(startInfo);
 
                 Directory.CreateDirectory(AppPaths.Logs);
@@ -107,10 +150,7 @@ namespace VRPC.Updates
                 // handles are about to become broken pipes. Point its console at
                 // a file instead of letting a fallback path crash on IOException.
                 startInfo.Environment["VRPC_SETUP_CONSOLE_LOG"] = Path.Combine(AppPaths.Logs, $"update-setup-console-{timestamp}.log");
-                foreach (string name in new[] { "VRPC_UPDATE_LOCAL_FEED", "VRPC_UPDATER_INITIAL_DELAY_SECONDS", "VRPC_DISABLE_UPDATER", "VRPC_NO_REGISTRY" })
-                {
-                    startInfo.Environment.Remove(name);
-                }
+                AutomationEnvironment.Scrub(startInfo);
 
                 return startInfo;
             }

@@ -23,3 +23,6 @@ jobs:
 
       - name: Test
         run: dotnet test VRPC.sln --nologo --no-build
+
+      - name: Release script failure injection
+        run: powershell -NoProfile -ExecutionPolicy Bypass -File packaging\test-release-scripts.ps1
