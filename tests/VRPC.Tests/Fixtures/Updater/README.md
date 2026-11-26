@@ -3,7 +3,7 @@
 `vrpc-test-key.private.pem` and `vrpc-test-key.public.spki.b64` are a **test-only**
 ECDSA P-256 key pair. They exist so the C# trust layer and the Node signer can be
 tested against the same bytes in both runtimes. They are committed on purpose and
-**must never be added to `Modules/Updates/TrustedUpdateKeys.cs`** — release builds
+**must never be added to `Modules/Deployment/Updates/TrustedUpdateKeys.cs`** — release builds
 only trust production key IDs.
 
 The production signing key never enters this repository. It lives outside every

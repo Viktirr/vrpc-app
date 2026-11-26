@@ -22,7 +22,7 @@
       3. Verify the ZIP: required files, payload.json schema/product/version/channel,
          and every payload.json file size + SHA-256 against the archive bytes.
       4. Compute the exact ZIP size and lowercase SHA-256.
-      5. Require -KeyId to be embedded in Modules/Updates/TrustedUpdateKeys.cs and
+      5. Require -KeyId to be embedded in Modules/Deployment/Updates/TrustedUpdateKeys.cs and
          to match the -KeyPath private key, then sign the payload offline (ECDSA
          P-256 / SHA-256 over RFC 8785 JCS bytes).
       6. Verify the produced envelope with the trusted public key and cross-check
@@ -54,7 +54,7 @@
 
 .PARAMETER PublicKeyPath
     Optional base64 SPKI public key file. The trusted key is always read from
-    Modules/Updates/TrustedUpdateKeys.cs (the updater's embedded key ring) and the
+    Modules/Deployment/Updates/TrustedUpdateKeys.cs (the updater's embedded key ring) and the
     envelope is verified with it; when this file is given (or the default
     <directory of -KeyPath>\<KeyId>.public.spki.b64 exists) it must match the
     trusted key. The public key derived from -KeyPath must match it as well.
@@ -268,7 +268,7 @@ function Invoke-NodeSigner {
 # signed with one of them: any other key id would make every installed client
 # reject the feed, so this is checked before the build and signing steps.
 function Get-TrustedUpdateKeys {
-    $path = Join-Path $script:RepoRoot "Modules\Updates\TrustedUpdateKeys.cs"
+    $path = Join-Path $script:RepoRoot "Modules\Deployment\Updates\TrustedUpdateKeys.cs"
     if (-not (Test-Path -LiteralPath $path -PathType Leaf)) {
         Fail ("The app trust store was not found: {0}" -f $path)
     }
@@ -295,7 +295,7 @@ function Assert-SamePublicKey {
     $actualBytes = ConvertFrom-Base64Key -Value $Actual -Description "The signing public key"
     $expectedBytes = ConvertFrom-Base64Key -Value $Expected -Description "The trusted public key"
     if ([System.BitConverter]::ToString($actualBytes) -ne [System.BitConverter]::ToString($expectedBytes)) {
-        Fail ("Public key mismatch: {0}. The signing key must match the public key embedded in Modules/Updates/TrustedUpdateKeys.cs." -f $Context)
+        Fail ("Public key mismatch: {0}. The signing key must match the public key embedded in Modules/Deployment/Updates/TrustedUpdateKeys.cs." -f $Context)
     }
 }
 
@@ -341,7 +341,7 @@ function Assert-PublishableEnvelope {
 
     $signatureKeyId = [string]$signature.keyId
     if (-not $TrustedKeys.Keys.ContainsKey($signatureKeyId)) {
-        Fail ("The feed signature keyId '{0}' is not in Modules/Updates/TrustedUpdateKeys.cs." -f $signatureKeyId)
+        Fail ("The feed signature keyId '{0}' is not in Modules/Deployment/Updates/TrustedUpdateKeys.cs." -f $signatureKeyId)
     }
     if ($signatureKeyId -ne $ExpectedKeyId) {
         Fail ("The feed signature keyId '{0}' does not match -KeyId '{1}'." -f $signatureKeyId, $ExpectedKeyId)
@@ -585,10 +585,10 @@ try {
     $trustedKeys = Get-TrustedUpdateKeys
     if (-not $trustedKeys.Keys.ContainsKey($KeyId)) {
         $trustedKeyIds = (@($trustedKeys.Keys.Keys) | Sort-Object) -join ", "
-        Fail ("-KeyId '{0}' is not in the app trust store (Modules/Updates/TrustedUpdateKeys.cs). Trusted key ids: {1}. Ship the new public key in a manually installed release before signing with it." -f $KeyId, $trustedKeyIds)
+        Fail ("-KeyId '{0}' is not in the app trust store (Modules/Deployment/Updates/TrustedUpdateKeys.cs). Trusted key ids: {1}. Ship the new public key in a manually installed release before signing with it." -f $KeyId, $trustedKeyIds)
     }
     $trustedPublicKey = [string]$trustedKeys.Keys[$KeyId]
-    Write-Step ("Trusted update key: '{0}' is listed in Modules/Updates/TrustedUpdateKeys.cs." -f $KeyId)
+    Write-Step ("Trusted update key: '{0}' is listed in Modules/Deployment/Updates/TrustedUpdateKeys.cs." -f $KeyId)
 
     # Derive the public key from the private key so a stale helper file cannot
     # hide a key/trust-store mismatch.
@@ -835,7 +835,7 @@ try {
         Write-Host ("  notes url : {0}" -f $payload.notesUrl)
         Write-Host ("  published : {0}" -f $payload.publishedAtUtc)
         Write-Host ("  signature : {0}, keyId={1}, {2} bytes" -f $signature.algorithm, $signature.keyId, $signatureBytes.Length)
-        Write-Host ("  key trust : keyId {0} is embedded in Modules/Updates/TrustedUpdateKeys.cs" -f $KeyId)
+        Write-Host ("  key trust : keyId {0} is embedded in Modules/Deployment/Updates/TrustedUpdateKeys.cs" -f $KeyId)
         Write-Host ("  canonical : sha256={0}" -f $canonicalSha)
         Write-Host ("  envelope  : {0}" -f $EnvelopePath)
         $feedDisplay = if ([string]::IsNullOrWhiteSpace($FeedPath)) { "<not specified; pass -FeedPath to write>" } else { $FeedPath }

@@ -11,7 +11,7 @@
 //
 // Writes <key-id>.private.pem (PKCS#8), <key-id>.public.spki.b64 and
 // <key-id>.keygen.json. Prints the C# trusted-key entry for
-// Modules/Updates/TrustedUpdateKeys.cs.
+// Modules/Deployment/Updates/TrustedUpdateKeys.cs.
 
 import { generateKeyPairSync } from 'node:crypto';
 import { mkdirSync, writeFileSync, existsSync } from 'node:fs';
@@ -75,7 +75,7 @@ writeFileSync(
 console.log(`Created ${privatePath}`);
 console.log(`Created ${publicPath}`);
 console.log('');
-console.log('C# entry for Modules/Updates/TrustedUpdateKeys.cs:');
+console.log('C# entry for Modules/Deployment/Updates/TrustedUpdateKeys.cs:');
 console.log(`            ["${keyId}"] = "${publicBase64}",`);
 console.log('');
 console.log('Back up the private key offline (password manager / encrypted backup).');

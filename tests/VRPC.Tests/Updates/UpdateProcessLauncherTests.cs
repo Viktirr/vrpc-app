@@ -3,8 +3,8 @@ using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
 using VRPC.Application;
-using VRPC.Install;
-using VRPC.Updates;
+using VRPC.Deployment.Install;
+using VRPC.Deployment.Updates;
 
 namespace VRPC.Tests.Updates
 {

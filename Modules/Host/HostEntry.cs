@@ -20,7 +20,7 @@ namespace VRPC.Host
                 if (!VRPCSettings.settingsData.DisableClearingLogs) { log.Clear(); }
                 log.Info($"[Host] Starting VRPC {ProductInfo.Version} root={AppPaths.Root} args={string.Join(" ", args)}");
 
-                if (VRPC.Install.SetupLifecycle.BlocksHostStartup(out string setupReason))
+                if (VRPC.Deployment.Install.SetupLifecycle.BlocksHostStartup(out string setupReason))
                 {
                     log.Warn("[Host] Startup suppressed: " + setupReason);
                     NativeMessagingCommands.SendLockExit();
@@ -54,7 +54,7 @@ namespace VRPC.Host
 
                 // Explains itself through the log in every case; an updater
                 // failure must never keep Rich Presence or history from working.
-                VRPC.Updates.UpdateRuntime.TryStart(log);
+                VRPC.Deployment.Updates.UpdateRuntime.TryStart(log);
 
                 return 0;
             }

@@ -1,7 +1,7 @@
 using System.Security.Cryptography;
 using System.Text.Json;
 using System.Text.Json.Nodes;
-using VRPC.Updates;
+using VRPC.Deployment.Updates;
 
 namespace VRPC.Tests.Trust
 {

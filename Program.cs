@@ -8,7 +8,7 @@ using VRPC.NativeMessasing;
 using VRPC.Configuration;
 using VRPC.ListeningDataManager;
 using VRPC.Globals;
-using VRPC.Setup;
+using VRPC.Deployment.Setup;
 
 class Program
 {
@@ -17,7 +17,7 @@ class Program
 
     public static SingleInstance? Instance { get; set; }
     public static ControlServer? ControlServer { get; set; }
-    public static VRPC.Updates.UpdateCoordinator? Updater { get; set; }
+    public static VRPC.Deployment.Updates.UpdateCoordinator? Updater { get; set; }
 
     public static bool runningOnBrowser = false;
     public static bool isDiscordRPCRunning = false;

@@ -1,7 +1,7 @@
 using System.Security.Cryptography;
 using System.Text.Json;
 using VRPC.Application;
-using VRPC.Updates;
+using VRPC.Deployment.Updates;
 
 namespace VRPC.Tests.Coordinator
 {

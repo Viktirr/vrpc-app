@@ -1,4 +1,4 @@
-using VRPC.Updates;
+using VRPC.Deployment.Updates;
 
 namespace VRPC.Tests.Updates
 {

@@ -1,5 +1,5 @@
 using VRPC.Configuration;
-using VRPC.Install;
+using VRPC.Deployment.Install;
 
 namespace VRPC.Tests.Installer;
 

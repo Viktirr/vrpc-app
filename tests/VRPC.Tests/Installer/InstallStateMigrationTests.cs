@@ -1,7 +1,7 @@
 using System.Text;
 using System.Text.Json;
 using VRPC.Application;
-using VRPC.Install;
+using VRPC.Deployment.Install;
 
 namespace VRPC.Tests.Installer;
 

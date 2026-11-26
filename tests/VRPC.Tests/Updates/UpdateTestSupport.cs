@@ -4,7 +4,7 @@ using System.Net.Http.Headers;
 using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
-using VRPC.Updates;
+using VRPC.Deployment.Updates;
 
 namespace VRPC.Tests.Updates
 {
